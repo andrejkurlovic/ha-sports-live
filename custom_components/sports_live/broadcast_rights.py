@@ -5,7 +5,7 @@ best-effort static map of UK broadcasters per competition code so the
 'broadcast_uk' field on match entities is useful for UK users.
 
 Rights change every few seasons — treat this as indicative, not authoritative.
-Last reviewed: 2025.
+Last reviewed: 2026-06-13.
 """
 from __future__ import annotations
 
@@ -44,14 +44,18 @@ _UK_RIGHTS: dict[str, list[str]] = {
     # ── Rugby Union ──────────────────────────────────────────────────────────
     "267979":             ["TNT Sports"],                  # Gallagher Premiership
     "180659":             ["BBC", "ITV"],                  # Six Nations
+    "270557":             ["TNT Sports", "Premier Sports"],# United Rugby Championship
+    "271937":             ["TNT Sports"],                  # Heineken Champions Cup
+    "272073":             ["TNT Sports"],                  # European Rugby Challenge Cup
+    "270559":             ["Premier Sports"],              # Top 14 (France)
     "242041":             ["Sky Sports"],                  # Super Rugby Pacific
+    "244293":             ["Sky Sports"],                  # The Rugby Championship
     "164205":             ["ITV"],                         # Rugby World Cup
-    "289234":             ["TNT Sports"],                  # United Rugby Championship
-    "170645":             ["Premier Sports"],              # Top 14 (France)
-    "270559":             ["TNT Sports"],                  # Heineken Champions Cup
-    "289235":             ["TNT Sports"],                  # EPCR Challenge Cup
-    "398":                ["Sky Sports"],                  # The Rugby Championship
-    "244293":             ["Sky Sports"],                  # The Rugby Championship (alt ID)
+    "289237":             ["BBC", "ITV"],                  # Women's Rugby World Cup
+    "268565":             ["ITV", "Sky Sports"],           # British & Irish Lions Tour
+    "289262":             ["Premier Sports"],              # Major League Rugby
+    "17567":              ["TNT Sports"],                  # Nations Championship
+    "289234":             ["BBC", "ITV"],                  # International Test Match
 }
 
 
