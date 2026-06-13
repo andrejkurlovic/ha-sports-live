@@ -1,0 +1,84 @@
+{
+  "leagues": [
+    {
+      "id": "267979",
+      "abbreviation": "PREM",
+      "name": "Gallagher Premiership",
+      "season": {
+        "year": 2025,
+        "displayName": "2024-25 Gallagher Premiership",
+        "startDate": "2024-09-14T04:00Z",
+        "endDate": "2025-06-21T03:59Z"
+      },
+      "logos": [{"href": "https://a.espncdn.com/i/leaguelogos/rugby/500/267979.png"}],
+      "calendarStartDate": "2024-09-14T04:00Z",
+      "calendarEndDate": "2025-06-21T03:59Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "801234",
+      "name": "Bath Rugby at Harlequins",
+      "date": "2025-04-26T14:00Z",
+      "season": {"year": 2025, "displayName": "2024-25 Gallagher Premiership", "slug": "2024-25-prem"},
+      "status": {
+        "type": {"state": "pre", "description": "Scheduled", "detail": "4/26 - 3:00 PM BST"},
+        "displayClock": "00:00",
+        "period": 0
+      },
+      "competitions": [
+        {
+          "id": "801234",
+          "attendance": 0,
+          "venue": {"fullName": "The Recreation Ground", "address": {"city": "Bath", "country": "England"}},
+          "notes": [],
+          "details": [],
+          "geoBroadcasts": [{"media": {"shortName": "TNT Sports"}}],
+          "league": {"displayName": "Gallagher Premiership"},
+          "competitors": [
+            {
+              "id": "8001",
+              "homeAway": "home",
+              "score": "0",
+              "form": "WWWWL",
+              "records": [{"summary": "16-2-2"}],
+              "statistics": [
+                {"name": "points", "displayValue": "78"},
+                {"name": "triesFor", "displayValue": "88"}
+              ],
+              "team": {
+                "id": "8001",
+                "displayName": "Bath Rugby",
+                "abbreviation": "BAT",
+                "color": "1C2F6A",
+                "logo": "https://a.espncdn.com/i/teamlogos/rugby/500/8001.png",
+                "logos": [{"href": "https://a.espncdn.com/i/teamlogos/rugby/500/8001.png"}]
+              },
+              "leaders": []
+            },
+            {
+              "id": "8002",
+              "homeAway": "away",
+              "score": "0",
+              "form": "LWWLW",
+              "records": [{"summary": "10-8-2"}],
+              "statistics": [
+                {"name": "points", "displayValue": "47"},
+                {"name": "triesFor", "displayValue": "52"}
+              ],
+              "team": {
+                "id": "8002",
+                "displayName": "Harlequins",
+                "abbreviation": "HAR",
+                "color": "003882",
+                "logo": "https://a.espncdn.com/i/teamlogos/rugby/500/8002.png",
+                "logos": [{"href": "https://a.espncdn.com/i/teamlogos/rugby/500/8002.png"}]
+              },
+              "leaders": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

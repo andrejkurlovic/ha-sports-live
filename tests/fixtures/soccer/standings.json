@@ -1,0 +1,56 @@
+{
+  "seasons": [
+    {
+      "year": 2025,
+      "displayName": "2024-25 Serie A",
+      "startDate": "2024-08-17T04:00Z",
+      "endDate": "2025-06-01T03:59Z"
+    }
+  ],
+  "children": [
+    {
+      "name": "Overall",
+      "standings": {
+        "entries": [
+          {
+            "team": {
+              "id": "109",
+              "displayName": "Internazionale",
+              "logos": [{"href": "https://a.espncdn.com/i/teamlogos/soccer/500/109.png"}]
+            },
+            "note": {"rank": 1},
+            "stats": [
+              {"name": "points", "displayValue": "74"},
+              {"name": "gamesPlayed", "displayValue": "32"},
+              {"name": "wins", "displayValue": "23"},
+              {"name": "ties", "displayValue": "5"},
+              {"name": "losses", "displayValue": "4"},
+              {"name": "pointsFor", "displayValue": "72"},
+              {"name": "pointsAgainst", "displayValue": "24"},
+              {"name": "pointDifferential", "displayValue": "+48"}
+            ]
+          },
+          {
+            "team": {
+              "id": "116",
+              "displayName": "SSC Napoli",
+              "logos": [{"href": "https://a.espncdn.com/i/teamlogos/soccer/500/116.png"}]
+            },
+            "note": {"rank": 2},
+            "stats": [
+              {"name": "points", "displayValue": "71"},
+              {"name": "gamesPlayed", "displayValue": "32"},
+              {"name": "wins", "displayValue": "21"},
+              {"name": "ties", "displayValue": "8"},
+              {"name": "losses", "displayValue": "3"},
+              {"name": "pointsFor", "displayValue": "58"},
+              {"name": "pointsAgainst", "displayValue": "22"},
+              {"name": "pointDifferential", "displayValue": "+36"}
+            ]
+          }
+        ],
+        "links": [{"href": "https://www.espn.com/soccer/standings/_/league/ita.1"}]
+      }
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+"""DataUpdateCoordinator for Sports Live.
+
+One coordinator per config entry. All sensors in an entry share one
+coordinator instance so ESPN is hit once per update cycle, not once per sensor.
+"""
+from __future__ import annotations
+import asyncio
+import json
+from datetime import datetime, timedelta, timezone
+
+import aiohttp
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .const import (
+    _LOGGER, DOMAIN,
+    CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_TEAM_ID,
+    MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    SENSOR_STANDINGS, SENSOR_MATCHES, SENSOR_NEXT_MATCH, SENSOR_SCHEDULE,
+    SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
+)
+from .sports import get_profile
+
+_ESPN_HEADERS = {"Accept-Language": "en"}
+_TIMEOUT = aiohttp.ClientTimeout(total=15)
+
+
+class SportsLiveCoordinator(DataUpdateCoordinator):
+    """Fetch and cache all ESPN data needed by this config entry's sensors."""
+
+    def __init__(self, hass, entry, update_interval: timedelta):
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_{entry.entry_id}",
+            update_interval=update_interval,
+        )
+        self._entry = entry
+        self._mode = entry.data.get(CONF_MODE)
+        self._sport_id = entry.data.get(CONF_SPORT)
+        self._competition = entry.data.get(CONF_COMPETITION_CODE)
+        self._team_id = entry.data.get(CONF_TEAM_ID)
+        self._profile = get_profile(self._sport_id)
+
+        # Dynamically resolved season dates (updated each cycle)
+        self._season_start: datetime | None = None
+        self._season_end: datetime | None = None
+
+    # ------------------------------------------------------------------
+    # Core update
+    # ------------------------------------------------------------------
+
+    async def _async_update_data(self) -> dict:
+        """Fetch all data relevant to this config entry."""
+        mode = self._mode
+        result: dict = {}
+
+        try:
+            if mode == MODE_NEWS:
+                url = self._profile.news_url(self._competition)
+                result[SENSOR_NEWS] = await self._fetch(url)
+
+            elif mode == MODE_ALL_TODAY:
+                url = self._profile.all_today_url()
+                result[SENSOR_ALL_TODAY] = await self._fetch(url)
+
+            elif mode in (MODE_COMPETITION,):
+                # Resolve season dates first
+                await self._resolve_season_dates()
+                start, end = self._date_range_strs()
+
+                scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
+                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+
+                if self._profile.capabilities.supports_standings:
+                    standings_url = self._profile.standings_url(self._competition)
+                    result[SENSOR_STANDINGS] = await self._fetch(standings_url)
+
+                if (self._profile.capabilities.supports_news
+                        and self._profile._news_url_tmpl):
+                    news_url = self._profile.news_url(self._competition)
+                    result[SENSOR_NEWS] = await self._fetch(news_url)
+
+                if (self._profile.capabilities.supports_bracket
+                        and self._competition in self._profile.knockout_competitions):
+                    bracket_url = self._build_bracket_url()
+                    result[SENSOR_BRACKET] = await self._fetch(bracket_url)
+
+            elif mode in (MODE_TEAM, MODE_MANUAL_TEAM):
+                await self._resolve_season_dates()
+                start, end = self._date_range_strs()
+
+                # Competition scoreboard filtered to team
+                scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
+                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+
+                # Cross-competition team schedule (soccer only)
+                if (self._team_id and self._profile._team_schedule_url_tmpl):
+                    schedule_url = self._profile.team_schedule_url(str(self._team_id))
+                    result[SENSOR_SCHEDULE_ALL] = await self._fetch(schedule_url)
+
+        except Exception as exc:
+            raise UpdateFailed(f"ESPN fetch failed: {exc}") from exc
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    async def _fetch(self, url: str) -> dict:
+        if not url:
+            return {}
+        retries = 0
+        while retries < 3:
+            try:
+                async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+                    async with session.get(url, headers=_ESPN_HEADERS) as resp:
+                        if resp.status == 200:
+                            raw = await resp.read()
+                            return await self.hass.async_add_executor_job(json.loads, raw)
+                        if resp.status in (404, 500):
+                            _LOGGER.warning("ESPN %s returned %s", url, resp.status)
+                            return {}
+                        await asyncio.sleep(5)
+                        retries += 1
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                await asyncio.sleep(5)
+                retries += 1
+        return {}
+
+    async def _resolve_season_dates(self):
+        """Fetch ESPN scoreboard once to extract calendarStartDate/EndDate."""
+        if self._competition in ("", None):
+            return
+        url = self._profile.scoreboard_url_plain(self._competition)
+        try:
+            data = await self._fetch(url)
+            leagues = data.get("leagues") or []
+            l0 = leagues[0] if leagues else {}
+            start = data.get("calendarStartDate") or l0.get("calendarStartDate")
+            end = data.get("calendarEndDate") or l0.get("calendarEndDate")
+            if start and end:
+                self._season_start = datetime.strptime(start[:10], "%Y-%m-%d")
+                self._season_end = datetime.strptime(end[:10], "%Y-%m-%d")
+        except Exception as e:
+            _LOGGER.debug("Could not resolve season dates: %s", e)
+
+        if not self._season_start or not self._season_end:
+            now = datetime.now()
+            self._season_start = now - timedelta(days=240)
+            self._season_end = now + timedelta(days=240)
+
+    def _date_range_strs(self) -> tuple[str, str]:
+        s = (self._season_start or datetime.now() - timedelta(days=240)).strftime("%Y%m%d")
+        e = (self._season_end or datetime.now() + timedelta(days=240)).strftime("%Y%m%d")
+        return s, e
+
+    def _build_bracket_url(self) -> str:
+        now = datetime.now()
+        ko_year = now.year + 1 if now.month >= 8 else now.year
+        return (
+            f"https://site.web.api.espn.com/apis/site/v2/sports/"
+            f"{self._profile.espn_sport}/{self._competition}/"
+            f"scoreboard?limit=300&dates={ko_year}0201-{ko_year}0731"
+        )
+
+    async def fetch_summary(self, event_id: str) -> dict:
+        """One-off summary fetch for a specific event (used by next_match enrichment)."""
+        url = self._profile.summary_url(self._competition, event_id)
+        return await self._fetch(url)

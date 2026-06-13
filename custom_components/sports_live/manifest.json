@@ -1,0 +1,12 @@
+{
+  "domain": "sports_live",
+  "name": "Sports Live (ESPN)",
+  "codeowners": ["@andrejkurlovic"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/andrejkurlovic/ha-sports-live",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/andrejkurlovic/ha-sports-live/issues",
+  "requirements": ["arrow>=1.2.0", "aiofiles", "pytz>=2023.3", "python-dateutil>=2.8.2"],
+  "version": "1.0.0"
+}

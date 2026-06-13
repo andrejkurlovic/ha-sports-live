@@ -1,0 +1,151 @@
+{
+  "leagues": [
+    {
+      "id": "ita.1",
+      "abbreviation": "ITA.1",
+      "name": "Serie A",
+      "slug": "ita.1",
+      "season": {
+        "year": 2025,
+        "displayName": "2024-25 Serie A",
+        "startDate": "2024-08-17T04:00Z",
+        "endDate": "2025-06-01T03:59Z"
+      },
+      "logos": [{"href": "https://a.espncdn.com/i/leaguelogos/soccer/500/5.png"}],
+      "calendarStartDate": "2024-08-17T04:00Z",
+      "calendarEndDate": "2025-06-01T03:59Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "701234",
+      "name": "Internazionale at AC Milan",
+      "date": "2025-04-22T18:45Z",
+      "season": {"year": 2025, "displayName": "2024-25 Serie A", "slug": "2024-25-serie-a"},
+      "status": {
+        "type": {"state": "pre", "description": "Scheduled", "detail": "4/22 - 8:45 PM BST"},
+        "displayClock": "0:00",
+        "period": 0
+      },
+      "competitions": [
+        {
+          "id": "701234",
+          "attendance": 0,
+          "venue": {"fullName": "San Siro", "address": {"city": "Milan", "country": "Italy"}},
+          "notes": [],
+          "details": [],
+          "geoBroadcasts": [{"media": {"shortName": "ESPN+"}}],
+          "league": {"displayName": "Serie A"},
+          "competitors": [
+            {
+              "id": "109",
+              "homeAway": "home",
+              "score": "0",
+              "form": "WWDWW",
+              "records": [{"summary": "20-8-4"}],
+              "statistics": [
+                {"name": "goals", "displayValue": "58"},
+                {"name": "shots", "displayValue": "320"}
+              ],
+              "team": {
+                "id": "109",
+                "displayName": "Internazionale",
+                "abbreviation": "INT",
+                "color": "0164AA",
+                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/109.png",
+                "logos": [{"href": "https://a.espncdn.com/i/teamlogos/soccer/500/109.png"}]
+              },
+              "leaders": []
+            },
+            {
+              "id": "103",
+              "homeAway": "away",
+              "score": "0",
+              "form": "WDLWL",
+              "records": [{"summary": "15-9-8"}],
+              "statistics": [],
+              "team": {
+                "id": "103",
+                "displayName": "AC Milan",
+                "abbreviation": "MIL",
+                "color": "AC0B18",
+                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png",
+                "logos": [{"href": "https://a.espncdn.com/i/teamlogos/soccer/500/103.png"}]
+              },
+              "leaders": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "701235",
+      "name": "Juventus at SSC Napoli",
+      "date": "2025-04-21T19:45Z",
+      "season": {"year": 2025, "displayName": "2024-25 Serie A", "slug": "2024-25-serie-a"},
+      "status": {
+        "type": {"state": "post", "description": "Final", "detail": "Full Time"},
+        "displayClock": "90:00",
+        "period": 2
+      },
+      "competitions": [
+        {
+          "id": "701235",
+          "attendance": 40000,
+          "venue": {"fullName": "Diego Armando Maradona Stadium", "address": {"city": "Naples", "country": "Italy"}},
+          "notes": [],
+          "details": [
+            {
+              "type": {"text": "Goal"},
+              "clock": {"displayValue": "23'"},
+              "athletesInvolved": [{"displayName": "Romelu Lukaku"}]
+            },
+            {
+              "type": {"text": "Goal"},
+              "clock": {"displayValue": "67'"},
+              "athletesInvolved": [{"displayName": "Dusan Vlahovic"}]
+            }
+          ],
+          "geoBroadcasts": [],
+          "league": {"displayName": "Serie A"},
+          "competitors": [
+            {
+              "id": "116",
+              "homeAway": "home",
+              "score": "1",
+              "form": "WWWLD",
+              "records": [{"summary": "18-10-4"}],
+              "statistics": [],
+              "team": {
+                "id": "116",
+                "displayName": "SSC Napoli",
+                "abbreviation": "NAP",
+                "color": "0B65AF",
+                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/116.png",
+                "logos": [{"href": "https://a.espncdn.com/i/teamlogos/soccer/500/116.png"}]
+              },
+              "leaders": []
+            },
+            {
+              "id": "111",
+              "homeAway": "away",
+              "score": "1",
+              "form": "WDWWL",
+              "records": [{"summary": "17-9-6"}],
+              "statistics": [],
+              "team": {
+                "id": "111",
+                "displayName": "Juventus",
+                "abbreviation": "JUV",
+                "color": "000000",
+                "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/111.png",
+                "logos": [{"href": "https://a.espncdn.com/i/teamlogos/soccer/500/111.png"}]
+              },
+              "leaders": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

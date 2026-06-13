@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sports Live — Choose Sport",
+        "description": "Select the sport you want to follow.",
+        "data": {
+          "sport": "Sport"
+        }
+      },
+      "mode": {
+        "title": "What to monitor",
+        "description": "Select what kind of sensor to create.",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "competition": {
+        "title": "Select Competition",
+        "description": "Choose the competition or league to monitor.",
+        "data": {
+          "competition_code": "Competition"
+        }
+      },
+      "team": {
+        "title": "Select Team",
+        "description": "Choose the team to follow within this competition.",
+        "data": {
+          "team_name": "Team"
+        }
+      },
+      "manual_team": {
+        "title": "Manual Team Entry",
+        "description": "Enter the ESPN team ID manually. Find the ID in the team URL on espn.com.",
+        "data": {
+          "manual_team_id": "Team ID",
+          "team_label": "Display name (optional)",
+          "competition_code": "Competition"
+        }
+      }
+    },
+    "error": {
+      "cannot_load_competitions": "Could not load competitions from ESPN. Check your internet connection.",
+      "cannot_load_teams": "Could not load teams for this competition."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sports Live Options",
+        "description": "Tune polling frequency and match visibility window.",
+        "data": {
+          "scan_interval": "Scan interval (minutes)",
+          "recent_match_hours": "Keep finished match visible for (hours)"
+        }
+      }
+    }
+  }
+}
