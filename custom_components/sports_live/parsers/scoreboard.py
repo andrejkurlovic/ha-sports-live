@@ -120,15 +120,22 @@ def process_news(data: dict) -> list[dict]:
 
 
 def is_within_recent_window(date_str: str | None, hours: int = 24) -> bool:
-    """True if match kickoff was within the last `hours`."""
+    """True if match kickoff was within the last `hours`.
+
+    Accepts either raw ISO 8601 UTC (date_iso field) or dd/mm/yyyy HH:MM (date field).
+    """
     try:
         if not date_str:
             return False
-        if isinstance(date_str, str):
-            dt = datetime.strptime(date_str, "%d/%m/%Y %H:%M").replace(tzinfo=timezone.utc)
-        else:
-            dt = date_str
-        return datetime.now(timezone.utc) - dt <= timedelta(hours=hours)
+        try:
+            dt = dateutil_parser.isoparse(date_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return datetime.now(timezone.utc) - dt <= timedelta(hours=hours)
+        except (ValueError, TypeError):
+            # Fallback: local-formatted string — compare naive datetimes
+            dt = datetime.strptime(date_str, "%d/%m/%Y %H:%M")
+            return datetime.now() - dt <= timedelta(hours=hours)
     except Exception:
         return False
 
@@ -183,6 +190,7 @@ def _parse_event(raw: dict, hass) -> dict | None:
         return {
             "event_id": raw.get("id"),
             "date": _fmt_date(hass, raw.get("date")),
+            "date_iso": raw.get("date", ""),   # raw UTC ISO for time calculations
             "season_info": season_info,
             "league_name": league_name,
             "home_team": home_team_data.get("displayName", "N/A"),
@@ -224,11 +232,13 @@ def _select_next_match(matches: list[dict], recent_match_hours: int) -> dict | N
     live = [m for m in matches if m.get("state") == "in"]
     if live:
         return live[0]
+    # Use date_iso for accurate recency check; fall back to formatted date string
     recent = [m for m in matches
               if m.get("state") == "post"
-              and is_within_recent_window(m.get("date"), recent_match_hours)]
+              and is_within_recent_window(
+                  m.get("date_iso") or m.get("date"), recent_match_hours)]
     if recent:
-        return recent[0]
+        return recent[-1]   # most recent finished match
     upcoming = [m for m in matches if m.get("state") == "pre"]
     if upcoming:
         return upcoming[0]

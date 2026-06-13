@@ -124,13 +124,18 @@ _NFL = SportProfile(
 RUGBY_COMPETITIONS: dict[str, str] = {
     "267979": "Gallagher Premiership (England)",
     "180659": "Six Nations",
+    "270557": "United Rugby Championship",
+    "271937": "Heineken Champions Cup",
+    "272073": "European Rugby Challenge Cup",
+    "270559": "Top 14 (France)",
     "242041": "Super Rugby Pacific",
+    "244293": "The Rugby Championship",
     "164205": "Rugby World Cup",
-    "289234": "United Rugby Championship",
-    "170645": "Top 14 (France)",
-    "270559": "Champions Cup",
-    "289235": "Challenge Cup",
-    "398": "The Rugby Championship",
+    "289237": "Women's Rugby World Cup",
+    "268565": "British & Irish Lions Tour",
+    "289262": "Major League Rugby",
+    "17567": "Nations Championship",
+    "289234": "International Test Match",
 }
 
 _RUGBY = SportProfile(

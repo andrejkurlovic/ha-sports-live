@@ -444,7 +444,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             computed.update(self._live_match_attrs(live[0]))
         if upcoming:
             computed.update(self._next_match_attrs(upcoming[0]))
-        recent = [m for m in finished if is_within_last_48_hours(m.get("date"))]
+        recent = [m for m in finished if is_within_last_48_hours(m.get("date_iso") or m.get("date"))]
         if recent:
             lm = recent[0]
             computed.update({
@@ -512,17 +512,17 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 f"-{lm.get('away_score','?')} {lm.get('away_team','?')}"
                 f" ({lm.get('clock','')})"
             )
+        upcoming = [m for m in matches if m.get("state") == "pre"]
+        if upcoming:
+            um = upcoming[0]
+            return f"Next: {um.get('home_team','?')} vs {um.get('away_team','?')} ({um.get('date','?')})"
         finished = [m for m in matches if m.get("state") == "post"]
         if finished:
-            fm = finished[0]
+            fm = finished[-1]   # most recent finished match
             return (
                 f"{fm.get('home_team','?')} {fm.get('home_score','?')}"
                 f"-{fm.get('away_score','?')} {fm.get('away_team','?')}"
             )
-        upcoming = [m for m in matches if m.get("state") == "pre"]
-        if upcoming:
-            um = upcoming[0]
-            return f"{um.get('home_team','?')} vs {um.get('away_team','?')} ({um.get('date','?')})"
         return f"{len(matches)} matches" if matches else "No matches"
 
     # ------------------------------------------------------------------
