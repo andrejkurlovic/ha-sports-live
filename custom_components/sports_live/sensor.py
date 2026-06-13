@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.storage import Store
@@ -171,8 +172,30 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         # Stable unique_suffix used for entity_id and unique_id
         self._unique_suffix = unique_suffix.replace("-", "_").lower()
 
-        # Entity attributes set via _handle_coordinator_update
-        self._attr_name = f"sports_live_{self._unique_suffix}"
+        _SENSOR_LABELS = {
+            SENSOR_STANDINGS: "Standings",
+            SENSOR_MATCHES: "Matches",
+            SENSOR_NEXT_MATCH: "Next Match",
+            SENSOR_SCHEDULE: "Schedule",
+            SENSOR_SCHEDULE_ALL: "Full Schedule",
+            SENSOR_NEWS: "News",
+            SENSOR_BRACKET: "Bracket",
+            SENSOR_ALL_TODAY: "All Today",
+        }
+        _SENSOR_ICONS = {
+            SENSOR_STANDINGS: "mdi:table-large",
+            SENSOR_MATCHES: "mdi:scoreboard-outline",
+            SENSOR_NEXT_MATCH: "mdi:calendar-clock",
+            SENSOR_SCHEDULE: "mdi:calendar",
+            SENSOR_SCHEDULE_ALL: "mdi:calendar-multiple",
+            SENSOR_NEWS: "mdi:newspaper-variant-outline",
+            SENSOR_BRACKET: "mdi:tournament",
+            SENSOR_ALL_TODAY: "mdi:view-list",
+        }
+
+        label = _SENSOR_LABELS.get(sensor_type, sensor_type.replace("_", " ").title())
+        self._attr_name = f"{entry.title} — {label}"
+        self._attr_icon = _SENSOR_ICONS.get(sensor_type)
         self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_{sensor_type}"
         self._attr_extra_state_attributes: dict = {}
         self._attr_native_value: str | None = None
@@ -190,6 +213,16 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self) -> str:
         return self._attr_unique_id
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.entry_id)},
+            name=self._entry.title,
+            manufacturer="ESPN",
+            model=self._sport_profile.sport_id.replace("_", " ").title(),
+            configuration_url="https://github.com/andrejkurlovic/ha-sports-live",
+        )
 
     @property
     def native_value(self):
