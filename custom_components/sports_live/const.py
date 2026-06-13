@@ -23,6 +23,12 @@ MODE_MANUAL_TEAM = "manual_team"
 SPORT_SOCCER = "soccer"
 SPORT_NFL = "nfl"
 SPORT_RUGBY = "rugby"
+SPORT_NBA = "nba"
+SPORT_NHL = "nhl"
+SPORT_MLB = "mlb"
+SPORT_CRICKET = "cricket"
+SPORT_TENNIS = "tennis"
+SPORT_MMA = "mma"
 
 # Options keys
 OPT_SCAN_INTERVAL = "scan_interval"

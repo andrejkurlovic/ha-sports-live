@@ -201,30 +201,42 @@ def _parse_event(raw: dict, hass) -> dict | None:
         else:
             clock = espn_clock
 
+        situation = comp.get("situation") or {}
+        predictor = comp.get("predictor") or {}
+        odds_list = comp.get("odds") or []
+        odds = odds_list[0] if odds_list else {}
+
         return {
             "event_id": raw.get("id"),
             "date": _fmt_date(hass, raw.get("date")),
             "date_iso": raw.get("date", ""),   # raw UTC ISO for time calculations
             "season_info": season_info,
             "league_name": league_name,
+            "event_url": _get_event_url(raw),
             "home_team": home_team_data.get("displayName", "N/A"),
             "home_abbrev": home_team_data.get("abbreviation", ""),
             "home_color": home_team_data.get("color", ""),
+            "home_alt_color": home_team_data.get("alternateColor", ""),
             "home_logo": _logo(home),
             "home_form": home.get("form", ""),
             "home_score": home.get("score", "N/A"),
             "home_statistics": _get_statistics(home),
             "home_record": _get_record(home),
             "home_top_scorer": _get_top_scorer(home),
+            "home_win_probability": _safe_float_key(predictor.get("homeTeam"), "gameProjection"),
+            "home_timeouts": situation.get("homeTimeouts"),
             "away_team": away_team_data.get("displayName", "N/A"),
             "away_abbrev": away_team_data.get("abbreviation", ""),
             "away_color": away_team_data.get("color", ""),
+            "away_alt_color": away_team_data.get("alternateColor", ""),
             "away_logo": _logo(away),
             "away_form": away.get("form", ""),
             "away_score": away.get("score", "N/A"),
             "away_statistics": _get_statistics(away),
             "away_record": _get_record(away),
             "away_top_scorer": _get_top_scorer(away),
+            "away_win_probability": _safe_float_key(predictor.get("awayTeam"), "gameProjection"),
+            "away_timeouts": situation.get("awayTimeouts"),
             "state": status_type.get("state", "N/A"),
             "status": status_type.get("description", "N/A"),
             "status_detail": status_type.get("detail", "N/A"),
@@ -236,6 +248,18 @@ def _parse_event(raw: dict, hass) -> dict | None:
             "broadcast": _get_broadcast(comp),
             "attendance": comp.get("attendance", 0),
             "match_details": match_details,
+            # live situation fields
+            "last_play": (situation.get("lastPlay") or {}).get("text", ""),
+            "down_distance_text": situation.get("downDistanceText", ""),
+            "balls": situation.get("balls"),
+            "strikes": situation.get("strikes"),
+            "outs": situation.get("outs"),
+            "on_first": situation.get("onFirst", False),
+            "on_second": situation.get("onSecond", False),
+            "on_third": situation.get("onThird", False),
+            # odds
+            "odds_details": odds.get("details", ""),
+            "over_under": odds.get("overUnder"),
         }
     except Exception:
         _LOGGER.exception("Error parsing event %s", raw.get("id"))
@@ -323,6 +347,23 @@ def _get_broadcast(competition: dict) -> str:
     if gbs:
         return (gbs[0].get("media", {}) or {}).get("shortName", "")
     return ""
+
+
+def _get_event_url(event: dict) -> str:
+    for link in event.get("links", []) or []:
+        rel = link.get("rel", []) or []
+        if "desktop" in rel:
+            return link.get("href", "")
+    return ""
+
+
+def _safe_float_key(obj: dict | None, key: str) -> float | None:
+    if not obj:
+        return None
+    try:
+        return float(obj[key])
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def _get_details(details: list) -> list[str]:

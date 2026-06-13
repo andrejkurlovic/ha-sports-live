@@ -5,7 +5,7 @@ best-effort static map of UK broadcasters per competition code so the
 'broadcast_uk' field on match entities is useful for UK users.
 
 Rights change every few seasons — treat this as indicative, not authoritative.
-Last reviewed: 2026-06-13.
+Last reviewed: 2026-06-14.
 """
 from __future__ import annotations
 
@@ -40,6 +40,27 @@ _UK_RIGHTS: dict[str, list[str]] = {
 
     # ── American Football (NFL) ───────────────────────────────────────────────
     "nfl":                ["Sky Sports", "DAZN"],
+
+    # ── Basketball (NBA) ─────────────────────────────────────────────────────
+    "nba":                ["Sky Sports", "TNT Sports"],
+
+    # ── Ice Hockey (NHL) ─────────────────────────────────────────────────────
+    "nhl":                ["TNT Sports", "Premier Sports"],
+
+    # ── Baseball (MLB) ───────────────────────────────────────────────────────
+    "mlb":                ["TNT Sports"],
+
+    # ── Cricket ──────────────────────────────────────────────────────────────
+    "23800":              ["Sky Sports Cricket"],          # ICC Men's Cricket World Cup
+    "23801":              ["Sky Sports Cricket", "TNT Sports"],  # The Ashes
+    "27454":              ["Sky Sports Cricket"],          # ICC World Test Championship
+
+    # ── Tennis ───────────────────────────────────────────────────────────────
+    "atp":                ["Eurosport", "Amazon Prime"],
+    "wta":                ["Eurosport", "Amazon Prime"],
+
+    # ── MMA / UFC ────────────────────────────────────────────────────────────
+    "ufc":                ["TNT Sports"],
 
     # ── Rugby Union ──────────────────────────────────────────────────────────
     "267979":             ["TNT Sports"],                  # Gallagher Premiership

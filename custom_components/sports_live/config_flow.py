@@ -21,7 +21,7 @@ from .const import (
     MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
 )
 from .sports import list_sports, get_profile
-from .sports.registry import RUGBY_COMPETITIONS
+from .sports.registry import RUGBY_COMPETITIONS, TENNIS_COMPETITIONS
 
 _ESPN_HEADERS = {"Accept-Language": "en"}
 _TIMEOUT = aiohttp.ClientTimeout(total=10)
@@ -205,6 +205,8 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_competitions(self, profile) -> dict[str, str]:
         """Returns {code: name} dict for UI selector."""
         if profile.numeric_competition_ids:
+            if profile.sport_id == "tennis":
+                return dict(TENNIS_COMPETITIONS)
             return dict(RUGBY_COMPETITIONS)
 
         url = profile.competitions_url()
