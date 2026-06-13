@@ -659,7 +659,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         "home_team", "home_abbrev", "home_color", "home_logo", "home_form", "home_score",
         "away_team", "away_abbrev", "away_color", "away_logo", "away_form", "away_score",
         "state", "status", "status_detail", "clock", "period", "venue", "venue_city",
-        "broadcast", "broadcast_uk",
+        "broadcast", "broadcast_uk", "match_details",
     })
 
     @classmethod
