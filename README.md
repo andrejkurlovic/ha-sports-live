@@ -1,25 +1,47 @@
 # Sports Live — Home Assistant Integration
 
-Multi-sport live scores and standings for [Home Assistant](https://www.home-assistant.io/), powered by the ESPN public API.
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange)](https://hacs.xyz)
+[![Tests](https://github.com/andrejkurlovic/ha-sports-live/actions/workflows/tests.yml/badge.svg)](https://github.com/andrejkurlovic/ha-sports-live/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/release/andrejkurlovic/ha-sports-live)](https://github.com/andrejkurlovic/ha-sports-live/releases)
 
-Supports **Soccer/Football**, **NFL (American Football)**, and **Rugby** with a sport-agnostic architecture designed to add more sports without changing the core.
+Live sports scores, standings, brackets, lineups, and news for [Home Assistant](https://www.home-assistant.io/) — powered by the ESPN public API.
 
-Forked from [Bobsilvio/calcio-live](https://github.com/Bobsilvio/calcio-live) — original soccer-only integration. This project extends it to a full multi-sport platform with a new domain (`sports_live`), config-flow redesign, and DataUpdateCoordinator.
+Supports **Soccer/Football**, **NFL (American Football)**, and **Rugby Union**, with a sport-agnostic architecture that makes adding further sports straightforward.
+
+> Built on top of [Bobsilvio/calcio-live](https://github.com/Bobsilvio/calcio-live) — the original soccer-only integration. Sports Live extends it to a multi-sport platform under a new domain (`sports_live`) with a redesigned config flow, DataUpdateCoordinator, and UK broadcast information.
 
 ---
 
-## Features
+## What you get
+
+For each competition or team you configure you get a set of Home Assistant sensor entities:
+
+| Sensor | What it shows |
+|--------|---------------|
+| **Matches** | Full scoreboard for a competition (state, score, clock, venue, broadcast) |
+| **Standings** | League table or conference standings with form, goal difference, and — for rugby — bonus points and tries |
+| **Next Match** | The next or currently live match for a team, with lineup and summary when available |
+| **Schedule** | A team's full fixture list for the season |
+| **Bracket** | Knockout/playoff bracket (soccer cup rounds, NFL playoffs) |
+| **News** | Latest headlines for the sport or competition |
+| **All Today** | Every match across all leagues today |
+
+Every match dict in sensor attributes includes **`broadcast_uk`** — which UK channel to watch on — alongside the ESPN US broadcast field.
+
+---
+
+## Sport Support
 
 | Feature | Soccer | NFL | Rugby |
 |---------|:------:|:---:|:-----:|
-| Live scoreboard | ✅ | ✅ | ✅ |
-| Standings | ✅ | ✅ | — |
-| News feed | ✅ | ✅ | ✅ |
-| Bracket/Playoff tree | ✅ | ✅ | — |
-| Lineup (pre-match) | ✅ | — | — |
+| Scoreboard | ✅ | ✅ | ✅ |
+| Standings | ✅ | ✅ | ✅ |
+| Bracket / Playoffs | ✅ | ✅ | — |
+| Lineup | ✅ | — | — |
 | Match summary | ✅ | ✅ | — |
 | Team mode | ✅ | ✅ | ✅ |
 | All-today view | ✅ | ✅ | ✅ |
+| UK broadcast info | ✅ | ✅ | ✅ |
 
 ---
 
@@ -27,115 +49,140 @@ Forked from [Bobsilvio/calcio-live](https://github.com/Bobsilvio/calcio-live) �
 
 ### Via HACS (recommended)
 
-1. Add this repo as a custom HACS repository:
-   - **HACS → Integrations → ⋮ → Custom repositories**
-   - URL: `https://github.com/andrejkurlovic/ha-sports-live`
-   - Category: **Integration**
-2. Install **Sports Live (ESPN)**
-3. Restart Home Assistant
+1. Open HACS → **Integrations** → ⋮ → **Custom repositories**
+2. Add `https://github.com/andrejkurlovic/ha-sports-live` — category **Integration**
+3. Find **Sports Live (ESPN)** and install it
+4. Restart Home Assistant
 
 ### Manual
 
-Copy `custom_components/sports_live/` into your HA config's `custom_components/` directory, then restart.
+Copy the `custom_components/sports_live/` folder into your HA config's `custom_components/` directory, then restart.
 
 ---
 
 ## Configuration
 
-Go to **Settings → Devices & Services → Add Integration → Sports Live**.
+**Settings → Devices & Services → Add Integration → Sports Live (ESPN)**
 
-The config flow has four steps:
+The setup walks you through four steps:
 
-### Step 1 — Choose Sport
+### 1. Choose Sport
 
-| Value | Sport |
-|-------|-------|
-| `soccer` | Soccer / Football |
-| `nfl` | American Football (NFL) |
-| `rugby` | Rugby Union |
+| Option | Sport |
+|--------|-------|
+| Football / Soccer | Soccer, all leagues |
+| American Football (NFL) | NFL (all conferences) |
+| Rugby Union | All major rugby unions |
 
-### Step 2 — Choose Mode
+### 2. Choose Mode
 
-| Mode | Description |
-|------|-------------|
-| **Competition** | Track a league/cup: scoreboard + standings + news |
-| **Team** | Track a specific team: next match, schedule |
-| **All Today** | All matches across all leagues today |
-| **News** | Latest headlines for the sport |
-| **Manual Team** | Enter team ID and competition manually |
+| Mode | Best for |
+|------|----------|
+| **Competition** | Following a full league — gets scoreboard + standings + news |
+| **Team** | Following a specific club — gets next match, schedule |
+| **All Today** | Dashboard overview of everything on today |
+| **News** | Latest headlines only |
+| **Manual Team** | Enter team ID/competition directly for unsupported combos |
 
-### Step 3 — Select Competition
+### 3. Select Competition
 
-Dropdown populated from ESPN. For rugby, pre-loaded list:
+Dropdown loaded from ESPN. For rugby, a pre-loaded list of major competitions is used (ESPN rugby uses numeric IDs, not slugs):
 
-| Rugby Competition | ESPN ID |
-|-------------------|---------|
+| Competition | ESPN ID |
+|-------------|---------|
 | Gallagher Premiership | 267979 |
 | Six Nations | 180659 |
 | Super Rugby Pacific | 242041 |
 | Rugby World Cup | 164205 |
-| United Rugby Championship | 270559 |
-| The Rugby Championship | 244293 |
-| Heineken Champions Cup | 271937 |
+| United Rugby Championship | 289234 |
+| Heineken Champions Cup | 270559 |
+| Top 14 (France) | 170645 |
+| The Rugby Championship | 398 |
 
-### Step 4 — Select Team *(optional)*
+### 4. Select Team *(optional)*
 
-Dropdown of teams in the chosen competition. Leave blank to track the whole competition.
+Choose a team from the competition to narrow sensors to that club.
 
-### Options
+### Options (post-setup)
 
-After setup, go to **Configure** on the integration entry:
+**Configure** on the integration card to change:
 
-| Option | Default | Range |
-|--------|---------|-------|
-| Scan interval | 5 min | 1–30 min |
-| Recent match window | 12 h | 6/12/24/48 h |
-
----
-
-## Entities Created
-
-Entity names follow the pattern `sensor.sports_live_<type>_<slug>`.
-
-| Sensor type | Mode | Description |
-|-------------|------|-------------|
-| `matches` | Competition | All matches for the competition |
-| `standings` | Competition (soccer/NFL) | League table or conference standings |
-| `news` | Competition / News | Latest articles |
-| `bracket` | Competition + knockout | Knockout bracket/playoff tree |
-| `next_match` | Team | Upcoming or live match |
-| `schedule` | Team | Full team schedule |
-| `all_today` | All Today | Every match today across all leagues |
+| Setting | Default | Range |
+|---------|---------|-------|
+| Scan interval | 5 min | 1 – 30 min |
+| Recent match window | 12 h | 6 / 12 / 24 / 48 h |
 
 ---
 
-## Events
+## Entities & Attributes
 
-The integration fires HA events for real-time automation:
+Entity IDs follow the pattern `sensor.sports_live_<type>_<slug>`.
 
-| Event | Trigger | Fields |
-|-------|---------|--------|
-| `sports_live_score` | Goal / score change | `sport`, `competition`, `home_team`, `away_team`, `home_score`, `away_score`, `scorer` |
-| `sports_live_discipline` | Yellow/red card | `sport`, `competition`, `team`, `player`, `card_type` |
-| `sports_live_match_finished` | Full-time | `sport`, `competition`, `home_team`, `away_team`, `home_score`, `away_score` |
+Every match object in the `matches` attribute includes:
 
-Legacy soccer events (`calcio_live_goal`, `calcio_live_card`, `calcio_live_match_finished`) are also fired for backward compatibility.
+```yaml
+home_team: "Arsenal"
+away_team: "Chelsea"
+home_score: "2"
+away_score: "1"
+state: "post"          # pre | in | post
+status: "Final"
+clock: "90'"
+venue: "Emirates Stadium"
+venue_city: "London"
+broadcast: "NBC"        # ESPN US-market data (may be empty outside NFL)
+broadcast_uk: "Sky Sports / TNT Sports"   # UK channel(s), always populated
+```
 
-### Example Automation
+Rugby standings additionally include `bonus_points`, `tries_for`, and `tries_against`.
+
+---
+
+## UK Broadcast Information
+
+ESPN's API only returns US broadcaster data. Sports Live ships a static **UK broadcast rights map** (`broadcast_rights.py`) so the `broadcast_uk` attribute is always populated for supported competitions. Example values:
+
+| Competition | `broadcast_uk` |
+|-------------|----------------|
+| Premier League | Sky Sports / TNT Sports / Amazon Prime |
+| Champions League | TNT Sports |
+| Six Nations | BBC / ITV |
+| Gallagher Premiership | TNT Sports |
+| NFL | Sky Sports / DAZN |
+| FA Cup | BBC / ITV |
+
+> **Note:** broadcast rights change every season. The map is reviewed and updated with each release. If a channel is wrong or missing, please [open an issue](https://github.com/andrejkurlovic/ha-sports-live/issues).
+
+---
+
+## HA Events
+
+The integration fires events you can use in automations:
+
+| Event | Fired when | Key data |
+|-------|-----------|----------|
+| `sports_live_score` | Goal / score change | `sport`, `home_team`, `away_team`, `home_score`, `away_score`, `scorer` |
+| `sports_live_discipline` | Yellow / red card | `sport`, `team`, `player`, `card_type` |
+| `sports_live_match_finished` | Full time | `sport`, `home_team`, `away_team`, `home_score`, `away_score` |
+
+Legacy `calcio_live_*` events are also fired so existing automations keep working.
+
+### Example — Goal notification
 
 ```yaml
 automation:
-  - alias: "Announce Goal"
+  - alias: "Announce goal"
     trigger:
       - platform: event
         event_type: sports_live_score
     action:
-      - service: notify.mobile_app
+      - service: notify.mobile_app_my_phone
         data:
-          title: "GOAL! {{ trigger.event.data.scorer }}"
+          title: "GOAL — {{ trigger.event.data.scorer }}"
           message: >
-            {{ trigger.event.data.home_team }} {{ trigger.event.data.home_score }}
-            – {{ trigger.event.data.away_score }} {{ trigger.event.data.away_team }}
+            {{ trigger.event.data.home_team }}
+            {{ trigger.event.data.home_score }}–{{ trigger.event.data.away_score }}
+            {{ trigger.event.data.away_team }}
 ```
 
 ---
@@ -144,41 +191,42 @@ automation:
 
 ```
 custom_components/sports_live/
-├── __init__.py              # Integration setup
+├── __init__.py           — integration setup
 ├── manifest.json
-├── const.py                 # All constants
-├── config_flow.py           # Multi-step config flow + options flow
-├── coordinator.py           # DataUpdateCoordinator (one per config entry)
-├── sensor.py                # CoordinatorEntity sensors + event dispatch
+├── const.py              — all constants, domain, config keys, sensor types
+├── config_flow.py        — 4-step config flow + options flow
+├── coordinator.py        — DataUpdateCoordinator (one per entry, 3-retry fetch)
+├── sensor.py             — CoordinatorEntity sensors + event dispatch
+├── broadcast_rights.py   — static UK broadcaster map
 ├── sports/
-│   ├── profile.py           # SportCapabilities + SportProfile dataclasses
-│   └── registry.py          # SPORT_REGISTRY (soccer, nfl, rugby)
-├── parsers/
-│   ├── scoreboard.py        # Generic match/event parser
-│   ├── standings.py         # Generic standings parser (dynamic season)
-│   ├── bracket.py           # Knockout/playoff bracket parser
-│   ├── summary.py           # Lineup + key events
-│   └── news.py              # News article parser
-└── translations/
-    ├── strings.json
-    └── en.json
+│   ├── profile.py        — SportCapabilities + SportProfile dataclasses
+│   └── registry.py       — SPORT_REGISTRY (soccer, nfl, rugby) + URL templates
+└── parsers/
+    ├── scoreboard.py     — generic match parser (soccer / NFL / rugby)
+    ├── standings.py      — generic standings parser with sport-alias handling
+    ├── bracket.py        — knockout bracket (two-legged ties + NFL single-game rounds)
+    ├── summary.py        — lineup and key match events
+    └── news.py
 ```
 
-### Adding a New Sport
+**Adding a new sport:** create one `SportProfile` entry in `sports/registry.py` with the ESPN sport slug, capability flags, and URL templates. Everything else — coordinator, config flow, sensors, events — reads from the registry automatically.
 
-1. Add a `SportProfile` entry to `sports/registry.py` with the correct ESPN sport slug and capabilities flags
-2. If the sport uses numeric competition IDs, set `numeric_competition_ids=True` and provide a hardcoded competition map
-3. That's it — the coordinator, sensor, and config flow all read from the registry
+---
+
+## Compatibility & Migration
+
+This integration uses domain `sports_live`. It can run **alongside** the original `calcio_live` integration — no migration required. Existing `calcio_live` config entries are untouched.
+
+Legacy `calcio_live_*` HA events are still fired by this integration so any automations you built against the old domain keep working.
 
 ---
 
 ## Upstream Attribution
 
-This project builds on [calcio-live](https://github.com/Bobsilvio/calcio-live) by [@Bobsilvio](https://github.com/Bobsilvio).  
-Original license: MIT — see [LICENSE](LICENSE).
+Forked from [Bobsilvio/calcio-live](https://github.com/Bobsilvio/calcio-live) — original soccer-only HA integration. Original work copyright Bobsilvio, MIT licence.
 
 ---
 
-## License
+## Licence
 
-MIT
+MIT — see [LICENSE](LICENSE).

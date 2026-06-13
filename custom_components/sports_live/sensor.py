@@ -33,6 +33,7 @@ from .parsers.scoreboard import (
 from .parsers.standings import process_standings
 from .parsers.bracket import process_bracket
 from .parsers.summary import process_summary
+from .broadcast_rights import enrich_matches_with_uk_broadcast
 
 
 async def async_setup_entry(
@@ -266,6 +267,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 recent_match_hours=recent_hrs,
             )
             matches = parsed.get("matches", [])
+            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
             self._attr_native_value = self._describe_matches(matches)
             computed = self._compute_all_matches_attrs(matches)
             self._attr_extra_state_attributes = {
@@ -287,6 +289,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 recent_match_hours=recent_hrs,
             )
             matches = parsed.get("matches", [])
+            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
             self._attr_native_value = self._describe_matches(matches)
             computed = self._compute_all_matches_attrs(matches)
             self._attr_extra_state_attributes = {
@@ -308,6 +311,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 recent_match_hours=recent_hrs,
             )
             matches = parsed.get("matches", [])
+            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
             self._attr_native_value = self._describe_matches(matches)
             computed = self._compute_all_matches_attrs(matches)
             self._attr_extra_state_attributes = {
@@ -331,6 +335,9 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             )
             next_match = parsed.get("next_match")
             matches = parsed.get("matches", [])
+            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
+            if next_match:
+                enrich_matches_with_uk_broadcast([next_match], self._competition_code or "")
 
             if next_match:
                 if next_match.get("state") == "in":

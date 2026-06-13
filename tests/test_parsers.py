@@ -341,3 +341,53 @@ class TestSportRegistry:
         from custom_components.sports_live.sports import get_profile
         p = get_profile("nfl")
         assert "nfl" in p.knockout_competitions
+
+
+# ---------------------------------------------------------------------------
+# UK Broadcast Rights
+# ---------------------------------------------------------------------------
+
+class TestUKBroadcastRights:
+    def test_known_competition_returns_channels(self):
+        from custom_components.sports_live.broadcast_rights import get_uk_channels
+        channels = get_uk_channels("eng.1")
+        assert "Sky Sports" in channels
+
+    def test_rugby_premiership_is_tnt(self):
+        from custom_components.sports_live.broadcast_rights import get_uk_channels
+        channels = get_uk_channels("267979")
+        assert "TNT Sports" in channels
+
+    def test_six_nations_is_bbc_itv(self):
+        from custom_components.sports_live.broadcast_rights import get_uk_channels
+        channels = get_uk_channels("180659")
+        assert "BBC" in channels
+        assert "ITV" in channels
+
+    def test_nfl_includes_sky(self):
+        from custom_components.sports_live.broadcast_rights import get_uk_channels
+        channels = get_uk_channels("nfl")
+        assert "Sky Sports" in channels
+
+    def test_unknown_competition_returns_empty(self):
+        from custom_components.sports_live.broadcast_rights import get_uk_channels
+        assert get_uk_channels("unknown.competition") == []
+
+    def test_enrich_adds_broadcast_uk_field(self):
+        from custom_components.sports_live.broadcast_rights import enrich_matches_with_uk_broadcast
+        matches = [{"home_team": "Arsenal", "broadcast": "NBC"}]
+        enrich_matches_with_uk_broadcast(matches, "eng.1")
+        assert "broadcast_uk" in matches[0]
+        assert "Sky Sports" in matches[0]["broadcast_uk"]
+
+    def test_enrich_preserves_existing_broadcast(self):
+        from custom_components.sports_live.broadcast_rights import enrich_matches_with_uk_broadcast
+        matches = [{"broadcast": "NBC"}]
+        enrich_matches_with_uk_broadcast(matches, "eng.1")
+        assert matches[0]["broadcast"] == "NBC"
+
+    def test_enrich_unknown_competition_gives_empty_string(self):
+        from custom_components.sports_live.broadcast_rights import enrich_matches_with_uk_broadcast
+        matches = [{"broadcast": ""}]
+        enrich_matches_with_uk_broadcast(matches, "unknown.xyz")
+        assert matches[0]["broadcast_uk"] == ""
