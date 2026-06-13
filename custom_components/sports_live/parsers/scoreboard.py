@@ -187,6 +187,20 @@ def _parse_event(raw: dict, hass) -> dict | None:
             if leagues:
                 league_name = leagues[0].get("name", "N/A")
 
+        details_raw = comp.get("details", [])
+        match_details = _get_details(details_raw)
+
+        # ESPN's displayClock for rugby is always stuck at "1'" regardless of
+        # actual match time. Derive a better value from the latest event clock
+        # in the details array, which does contain accurate per-event times.
+        espn_clock = raw.get("status", {}).get("displayClock", "N/A")
+        derived = _derive_clock_from_details(details_raw)
+        if derived and (espn_clock in ("1'", "0:00", "N/A") or
+                        _clock_minutes(derived) > _clock_minutes(espn_clock)):
+            clock = derived
+        else:
+            clock = espn_clock
+
         return {
             "event_id": raw.get("id"),
             "date": _fmt_date(hass, raw.get("date")),
@@ -214,14 +228,14 @@ def _parse_event(raw: dict, hass) -> dict | None:
             "state": status_type.get("state", "N/A"),
             "status": status_type.get("description", "N/A"),
             "status_detail": status_type.get("detail", "N/A"),
-            "clock": raw.get("status", {}).get("displayClock", "N/A"),
+            "clock": clock,
             "period": raw.get("status", {}).get("period", "N/A"),
             "venue": venue_obj.get("fullName", "N/A"),
             "venue_city": venue_address.get("city", "N/A"),
             "venue_country": venue_address.get("country", "N/A"),
             "broadcast": _get_broadcast(comp),
             "attendance": comp.get("attendance", 0),
-            "match_details": _get_details(comp.get("details", [])),
+            "match_details": match_details,
         }
     except Exception:
         _LOGGER.exception("Error parsing event %s", raw.get("id"))
@@ -319,3 +333,38 @@ def _get_details(details: list) -> list[str]:
         athletes = [a.get("displayName", "") for a in d.get("athletesInvolved", [])]
         events.append(f"{evt} - {clock}: {', '.join(athletes) or 'N/A'}")
     return events
+
+
+def _clock_minutes(clock_str: str) -> int:
+    """Convert a clock string to total minutes for comparison purposes."""
+    import re
+    if not clock_str or clock_str == "N/A":
+        return -1
+    # N' rugby format
+    m = re.match(r"^(\d+)'?$", str(clock_str).strip())
+    if m:
+        return int(m.group(1))
+    # MM:SS soccer format
+    m = re.match(r"^(\d+):(\d+)$", str(clock_str).strip())
+    if m:
+        return int(m.group(1))
+    return -1
+
+
+def _derive_clock_from_details(details: list) -> str | None:
+    """Return the latest clock seen in match details.
+
+    ESPN's displayClock for rugby is stuck at "1'" regardless of actual
+    match time. The per-event clock inside details[] IS accurate, so we
+    extract the highest minute value seen across all events.
+    """
+    import re
+    max_min: int | None = None
+    for d in details:
+        val = str(d.get("clock", {}).get("displayValue", "")).strip()
+        m = re.match(r"^(\d+)'?$", val)
+        if m:
+            mins = int(m.group(1))
+            if max_min is None or mins > max_min:
+                max_min = mins
+    return f"{max_min}'" if max_min is not None else None
