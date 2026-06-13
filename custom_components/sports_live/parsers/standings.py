@@ -39,8 +39,8 @@ def process_standings(data: dict) -> dict:
 
             for index, entry in enumerate(standings_data, start=1):
                 team = entry.get("team", {})
-                logos = team.get("logos", []) or []
-                stats = {s["name"]: s["displayValue"] for s in entry.get("stats", [])}
+                logos = [l for l in (team.get("logos", []) or []) if l]
+                stats = {s["name"]: s.get("displayValue", "") for s in entry.get("stats", [])}
 
                 # Rank: prefer explicit rank stat, fall back to position in list
                 rank = int(float(stats.get("rank", index))) if "rank" in stats else (

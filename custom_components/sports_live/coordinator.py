@@ -93,9 +93,11 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
                 result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
 
-                # Cross-competition team schedule (soccer only)
+                # Cross-competition team schedule
                 if (self._team_id and self._profile._team_schedule_url_tmpl):
-                    schedule_url = self._profile.team_schedule_url(str(self._team_id))
+                    schedule_url = self._profile.team_schedule_url(
+                        str(self._team_id), competition=self._competition or ""
+                    )
                     result[SENSOR_SCHEDULE_ALL] = await self._fetch(schedule_url)
 
         except Exception as exc:

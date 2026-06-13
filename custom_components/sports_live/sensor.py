@@ -305,7 +305,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             computed = self._compute_all_matches_attrs(matches)
             self._attr_extra_state_attributes = {
                 "league_info": parsed.get("league_info", []),
-                "matches": matches,
+                "matches": self._trim_matches_for_storage(matches),
                 **computed,
                 "competition_code": self._competition_code,
                 "sport": self._sport_profile.sport_id,
@@ -329,7 +329,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 "league_info": parsed.get("league_info", []),
                 "team_name": self._team_name,
                 "team_logo": parsed.get("team_logo"),
-                "matches": matches,
+                "matches": self._trim_matches_for_storage(matches),
                 **computed,
                 "competition_code": self._competition_code,
                 "sport": self._sport_profile.sport_id,
@@ -350,7 +350,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             self._attr_extra_state_attributes = {
                 "team_name": self._team_name,
                 "team_logo": parsed.get("team_logo"),
-                "matches": matches,
+                "matches": self._trim_matches_for_storage(matches),
                 **computed,
                 "sport": self._sport_profile.sport_id,
             }
@@ -388,7 +388,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             computed = self._compute_next_match_attrs(next_match) if next_match else {}
             self._attr_extra_state_attributes = {
                 **parsed,
-                "matches": matches,
+                "matches": self._trim_matches_for_storage(matches),
                 **computed,
                 "competition_code": self._competition_code,
                 "sport": self._sport_profile.sport_id,
@@ -653,6 +653,23 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
     # ------------------------------------------------------------------
     # Utility
     # ------------------------------------------------------------------
+
+    _MATCH_STORAGE_FIELDS = frozenset({
+        "event_id", "date", "date_iso", "season_info", "league_name",
+        "home_team", "home_abbrev", "home_color", "home_logo", "home_form", "home_score",
+        "away_team", "away_abbrev", "away_color", "away_logo", "away_form", "away_score",
+        "state", "status", "clock", "period", "venue", "venue_city",
+        "broadcast", "broadcast_uk",
+    })
+
+    @classmethod
+    def _trim_matches_for_storage(cls, matches: list) -> list:
+        """Strip heavy fields and keep live + upcoming + last 20 finished to stay under 16KB."""
+        live = [m for m in matches if m.get("state") == "in"]
+        upcoming = [m for m in matches if m.get("state") == "pre"]
+        finished = [m for m in matches if m.get("state") == "post"]
+        trimmed = live + upcoming + finished[-20:]
+        return [{k: v for k, v in m.items() if k in cls._MATCH_STORAGE_FIELDS} for m in trimmed]
 
     @staticmethod
     def _safe_score(v) -> int:

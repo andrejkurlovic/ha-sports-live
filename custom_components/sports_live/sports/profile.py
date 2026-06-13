@@ -69,8 +69,8 @@ class SportProfile:
     def summary_url(self, competition: str, event_id: str) -> str:
         return self._summary_url_tmpl.format(competition=competition, event_id=event_id)
 
-    def team_schedule_url(self, team_id: str) -> str:
-        return self._team_schedule_url_tmpl.format(team_id=team_id)
+    def team_schedule_url(self, team_id: str, competition: str = "") -> str:
+        return self._team_schedule_url_tmpl.format(team_id=team_id, competition=competition)
 
     def all_today_url(self) -> str:
         return self._all_today_url
