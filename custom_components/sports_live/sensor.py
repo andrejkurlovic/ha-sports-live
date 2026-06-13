@@ -658,7 +658,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         "event_id", "date", "date_iso", "season_info", "league_name",
         "home_team", "home_abbrev", "home_color", "home_logo", "home_form", "home_score",
         "away_team", "away_abbrev", "away_color", "away_logo", "away_form", "away_score",
-        "state", "status", "clock", "period", "venue", "venue_city",
+        "state", "status", "status_detail", "clock", "period", "venue", "venue_city",
         "broadcast", "broadcast_uk",
     })
 
