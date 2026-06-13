@@ -1,7 +1,13 @@
 """Generic ESPN standings parser.
 
-Works for soccer (v2 standings endpoint) and NFL (site/v2 standings).
-Rugby standings are not supported via site API (ESPN returns 500 errors).
+Works for soccer (v2 standings endpoint), NFL (site/v2 standings), and
+Rugby (v2 standings endpoint — site.web.api.espn.com/apis/v2/sports/rugby/).
+
+ESPN uses different stat names per sport:
+  Soccer/NFL  : wins, ties, losses, pointDifferential
+  Rugby       : gamesWon, gamesDrawn, gamesLost, pointsDifference
+Both return pointsFor, pointsAgainst, gamesPlayed, points unchanged.
+Rugby additionally exposes bonusPoints, triesFor, triesAgainst.
 """
 from __future__ import annotations
 from datetime import datetime
@@ -36,7 +42,10 @@ def process_standings(data: dict) -> dict:
                 logos = team.get("logos", []) or []
                 stats = {s["name"]: s["displayValue"] for s in entry.get("stats", [])}
 
-                rank = entry.get("note", {}).get("rank", index)
+                # Rank: prefer explicit rank stat, fall back to position in list
+                rank = int(float(stats.get("rank", index))) if "rank" in stats else (
+                    entry.get("note", {}).get("rank", index)
+                )
 
                 standings.append({
                     "rank": rank,
@@ -45,12 +54,21 @@ def process_standings(data: dict) -> dict:
                     "team_logo": logos[0].get("href", "") if logos else "",
                     "points": stats.get("points", "N/A"),
                     "games_played": stats.get("gamesPlayed", "N/A"),
-                    "wins": stats.get("wins", "N/A"),
-                    "draws": stats.get("ties", "N/A"),
-                    "losses": stats.get("losses", "N/A"),
+                    # Soccer/NFL use "wins"/"ties"/"losses"; rugby uses "gamesWon"/"gamesDrawn"/"gamesLost"
+                    "wins": stats.get("wins") or stats.get("gamesWon", "N/A"),
+                    "draws": stats.get("ties") or stats.get("gamesDrawn", "N/A"),
+                    "losses": stats.get("losses") or stats.get("gamesLost", "N/A"),
                     "goals_for": stats.get("pointsFor", "N/A"),
                     "goals_against": stats.get("pointsAgainst", "N/A"),
-                    "goal_difference": stats.get("pointDifferential", "N/A"),
+                    # Soccer/NFL use "pointDifferential"; rugby uses "pointsDifference"
+                    "goal_difference": (
+                        stats.get("pointDifferential")
+                        or stats.get("pointsDifference", "N/A")
+                    ),
+                    # Rugby-specific (will be "N/A" for other sports)
+                    "bonus_points": stats.get("bonusPoints", "N/A"),
+                    "tries_for": stats.get("triesFor", "N/A"),
+                    "tries_against": stats.get("triesAgainst", "N/A"),
                 })
 
             links = child.get("standings", {}).get("links", [])
@@ -62,7 +80,7 @@ def process_standings(data: dict) -> dict:
                 "full_table_link": full_table_link,
             })
 
-        # Determine current season dynamically — no more hardcoded year
+        # Determine current season dynamically — no hardcoded year
         seasons_data = data.get("seasons", [])
         current_year = datetime.now().year
         current_season = (

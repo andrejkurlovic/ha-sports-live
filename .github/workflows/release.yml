@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from manifest
+        id: version
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('custom_components/sports_live/manifest.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Sports Live ${{ github.ref_name }}"
+          generate_release_notes: true
+          body: |
+            See [CHANGELOG](https://github.com/andrejkurlovic/ha-sports-live/blob/main/CHANGELOG.md) for details.
+
+            Install via HACS or copy `custom_components/sports_live/` to your HA config directory.

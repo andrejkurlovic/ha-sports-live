@@ -186,6 +186,41 @@ class TestSoccerStandings:
         assert result["season"] != "N/A"
 
 
+class TestRugbyStandings:
+    def setup_method(self):
+        from custom_components.sports_live.parsers.standings import process_standings
+        self.parse = process_standings
+        self.data = _load("rugby", "standings")
+
+    def test_returns_standings_group(self):
+        result = self.parse(self.data)
+        assert "standings_groups" in result
+        assert result["standings_groups"]
+
+    def test_northampton_is_first(self):
+        result = self.parse(self.data)
+        standings = result["standings_groups"][0]["standings"]
+        assert standings[0]["team_name"] == "Northampton Saints"
+        assert standings[0]["rank"] == 1
+        assert standings[0]["points"] == "74"
+
+    def test_rugby_specific_stats_present(self):
+        result = self.parse(self.data)
+        entry = result["standings_groups"][0]["standings"][0]
+        # Rugby exposes bonus points and tries
+        assert entry["bonus_points"] != "N/A"
+        assert entry["tries_for"] != "N/A"
+        assert entry["tries_against"] != "N/A"
+
+    def test_wins_draws_losses_resolved(self):
+        result = self.parse(self.data)
+        entry = result["standings_groups"][0]["standings"][0]
+        # gamesWon / gamesDrawn / gamesLost aliases should resolve
+        assert entry["wins"] != "N/A"
+        assert entry["draws"] != "N/A"
+        assert entry["losses"] != "N/A"
+
+
 # ---------------------------------------------------------------------------
 # Bracket parser
 # ---------------------------------------------------------------------------
@@ -274,10 +309,10 @@ class TestSportRegistry:
         p = get_profile("nfl")
         assert p.capabilities.supports_standings
 
-    def test_rugby_no_standings(self):
+    def test_rugby_has_standings(self):
         from custom_components.sports_live.sports import get_profile
         p = get_profile("rugby")
-        assert not p.capabilities.supports_standings
+        assert p.capabilities.supports_standings
 
     def test_soccer_has_lineup(self):
         from custom_components.sports_live.sports import get_profile

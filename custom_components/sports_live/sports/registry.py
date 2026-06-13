@@ -5,7 +5,7 @@ ESPN base URLs used:
             https://site.web.api.espn.com/apis/v2/sports/soccer/{league}/standings
   Football: https://site.api.espn.com/apis/site/v2/sports/football/{league}/
   Rugby:    https://site.api.espn.com/apis/site/v2/sports/rugby/{league}/
-            (Rugby standings broken via site API — disabled in capabilities)
+            https://site.web.api.espn.com/apis/v2/sports/rugby/{league}/standings
 
 Rugby uses numeric league IDs; soccer and football use text slugs.
 """
@@ -121,7 +121,6 @@ _NFL = SportProfile(
 )
 
 # Rugby uses numeric league IDs — we provide a curated known list.
-# Standings via site API return 500 errors (documented ESPN limitation).
 RUGBY_COMPETITIONS: dict[str, str] = {
     "267979": "Gallagher Premiership (England)",
     "180659": "Six Nations",
@@ -140,7 +139,7 @@ _RUGBY = SportProfile(
     espn_sport="rugby",
     icon="mdi:rugby",
     capabilities=SportCapabilities(
-        supports_standings=False,   # ESPN site API returns 500 for rugby standings
+        supports_standings=True,
         supports_news=True,
         supports_next_match=True,
         supports_team_schedule=True,
@@ -160,7 +159,9 @@ _RUGBY = SportProfile(
         "https://site.api.espn.com/apis/site/v2/sports/rugby/{competition}"
         "/scoreboard?limit=1000&dates={start}-{end}"
     ),
-    _standings_url_tmpl="",        # not supported
+    _standings_url_tmpl=(
+        "https://site.web.api.espn.com/apis/v2/sports/rugby/{competition}/standings"
+    ),
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/rugby/{competition}/news?limit=15"
     ),
