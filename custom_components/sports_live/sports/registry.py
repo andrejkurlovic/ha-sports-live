@@ -110,7 +110,7 @@ _NFL = SportProfile(
         "/scoreboard?limit=1000&dates={start}-{end}"
     ),
     _standings_url_tmpl=(
-        "https://site.api.espn.com/apis/site/v2/sports/football/{competition}/standings"
+        "https://site.web.api.espn.com/apis/v2/sports/football/{competition}/standings"
     ),
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/football/{competition}/news?limit=15"
@@ -213,7 +213,7 @@ _NBA = SportProfile(
         "/scoreboard?limit=1000&dates={start}-{end}"
     ),
     _standings_url_tmpl=(
-        "https://site.api.espn.com/apis/site/v2/sports/basketball/{competition}/standings"
+        "https://site.web.api.espn.com/apis/v2/sports/basketball/{competition}/standings"
     ),
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/basketball/{competition}/news?limit=15"
@@ -257,7 +257,7 @@ _NHL = SportProfile(
         "/scoreboard?limit=1000&dates={start}-{end}"
     ),
     _standings_url_tmpl=(
-        "https://site.api.espn.com/apis/site/v2/sports/hockey/{competition}/standings"
+        "https://site.web.api.espn.com/apis/v2/sports/hockey/{competition}/standings"
     ),
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/hockey/{competition}/news?limit=15"
@@ -301,7 +301,7 @@ _MLB = SportProfile(
         "/scoreboard?limit=1000&dates={start}-{end}"
     ),
     _standings_url_tmpl=(
-        "https://site.api.espn.com/apis/site/v2/sports/baseball/{competition}/standings"
+        "https://site.web.api.espn.com/apis/v2/sports/baseball/{competition}/standings"
     ),
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/baseball/{competition}/news?limit=15"

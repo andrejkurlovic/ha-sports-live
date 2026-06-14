@@ -513,3 +513,86 @@ class TestOddsPlaceholderEvent:
         result = process_scoreboard(data, _mock_hass())
         assert len(result["matches"]) == 1
         assert result["matches"][0]["odds_details"] == ""
+
+
+class TestUSStandings:
+    """NBA/NHL/MLB/NFL standings: conference groups + US-specific fields."""
+    def _payload(self):
+        # Mirrors ESPN web/v2 shape: top node -> conference children -> entries
+        def entry(name, wins, losses, pct, gb, streak, seed, otl=""):
+            stats = [
+                {"name": "wins", "displayValue": wins},
+                {"name": "losses", "displayValue": losses},
+                {"name": "winPercent", "displayValue": pct},
+                {"name": "gamesBehind", "displayValue": gb},
+                {"name": "streak", "displayValue": streak},
+                {"name": "playoffSeed", "displayValue": seed},
+            ]
+            if otl:
+                stats.append({"name": "otLosses", "displayValue": otl})
+            return {"team": {"id": "1", "displayName": name}, "stats": stats}
+        return {
+            "seasons": [],
+            "children": [
+                {"name": "Eastern Conference", "standings": {"entries": [
+                    entry("Detroit Pistons", "60", "22", ".732", "-", "W3", "1"),
+                ]}},
+                {"name": "Western Conference", "standings": {"entries": [
+                    entry("OKC Thunder", "68", "14", ".829", "-", "W5", "1"),
+                ]}},
+            ],
+        }
+
+    def test_two_conference_groups(self):
+        from custom_components.sports_live.parsers.standings import process_standings
+        r = process_standings(self._payload())
+        assert len(r["standings_groups"]) == 2
+        assert r["standings_groups"][0]["name"] == "Eastern Conference"
+
+    def test_us_fields_present(self):
+        from custom_components.sports_live.parsers.standings import process_standings
+        t = process_standings(self._payload())["standings_groups"][0]["standings"][0]
+        assert t["wins"] == "60"
+        assert t["losses"] == "22"
+        assert t["win_pct"] == ".732"
+        assert t["streak"] == "W3"
+        assert t["playoff_seed"] == "1"
+
+    def test_nested_divisions_flattened(self):
+        from custom_components.sports_live.parsers.standings import process_standings
+        # Conference has no direct entries but nests divisions with entries
+        data = {"children": [{
+            "name": "American League",
+            "children": [
+                {"name": "AL East", "standings": {"entries": [
+                    {"team": {"id": "9", "displayName": "Yankees"},
+                     "stats": [{"name": "wins", "displayValue": "42"},
+                               {"name": "losses", "displayValue": "27"}]},
+                ]}},
+            ],
+        }]}
+        r = process_standings(data)
+        # The division group (which actually has entries) is surfaced
+        names = [g["name"] for g in r["standings_groups"]]
+        assert "AL East" in names
+        assert r["standings_groups"][0]["standings"][0]["team_name"] == "Yankees"
+
+    def test_soccer_fields_still_work(self):
+        from custom_components.sports_live.parsers.standings import process_standings
+        data = {"children": [{"name": "EPL", "standings": {"entries": [
+            {"team": {"id": "1", "displayName": "Arsenal"}, "stats": [
+                {"name": "gamesPlayed", "displayValue": "38"},
+                {"name": "wins", "displayValue": "26"},
+                {"name": "ties", "displayValue": "7"},
+                {"name": "losses", "displayValue": "5"},
+                {"name": "pointsFor", "displayValue": "71"},
+                {"name": "pointsAgainst", "displayValue": "27"},
+                {"name": "pointDifferential", "displayValue": "+44"},
+                {"name": "points", "displayValue": "85"},
+            ]},
+        ]}}]}
+        t = process_standings(data)["standings_groups"][0]["standings"][0]
+        assert t["wins"] == "26"
+        assert t["draws"] == "7"
+        assert t["goal_difference"] == "+44"
+        assert t["points"] == "85"

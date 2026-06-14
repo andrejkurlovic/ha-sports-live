@@ -1,13 +1,20 @@
 """Generic ESPN standings parser.
 
-Works for soccer (v2 standings endpoint), NFL (site/v2 standings), and
-Rugby (v2 standings endpoint — site.web.api.espn.com/apis/v2/sports/rugby/).
+All sports use the ``site.web.api.espn.com/apis/v2/sports/{sport}/{league}/standings``
+endpoint. ESPN names the same concepts differently per sport, so each output
+field is resolved from a list of candidate ESPN stat names:
 
-ESPN uses different stat names per sport:
-  Soccer/NFL  : wins, ties, losses, pointDifferential
-  Rugby       : gamesWon, gamesDrawn, gamesLost, pointsDifference
-Both return pointsFor, pointsAgainst, gamesPlayed, points unchanged.
-Rugby additionally exposes bonusPoints, triesFor, triesAgainst.
+  Wins/Losses/Draws : wins / gamesWon, losses / gamesLost, ties / gamesDrawn
+  Difference        : pointDifferential (soccer/US) / pointsDifference (rugby)
+  US-league extras  : winPercent, gamesBehind, streak, playoffSeed,
+                      divisionRecord, OT losses, overall record
+  Rugby extras      : bonusPoints, triesFor, triesAgainst
+
+The output dict carries every field; the card decides which columns to show
+based on the entry's sport. League tables (soccer/rugby) return one group;
+US leagues return one group per conference (Eastern/Western, AL/NL, AFC/NFC),
+sometimes with divisions nested a level deeper — handled by walking children
+recursively.
 """
 from __future__ import annotations
 from datetime import datetime
@@ -15,6 +22,35 @@ from datetime import datetime
 from dateutil import parser as dateutil_parser
 
 from ..const import _LOGGER
+
+
+def _stat(stats: dict, *names: str, default: str = "N/A"):
+    """Return the first present, non-empty ESPN stat among ``names``."""
+    for n in names:
+        v = stats.get(n)
+        if v not in (None, ""):
+            return v
+    return default
+
+
+def _iter_groups(node: dict):
+    """Yield (name, entries, links) for every standings group in the tree.
+
+    A conference node may hold team entries directly, or nest division
+    sub-nodes that hold the entries; recurse so both shapes are flattened
+    into one group per table the user would expect to see.
+    """
+    children = node.get("children") or []
+    standings = node.get("standings") or {}
+    entries = standings.get("entries") or []
+
+    if entries:
+        yield (node.get("name", "Standings"), entries, standings.get("links") or [])
+        return
+
+    if children:
+        for child in children:
+            yield from _iter_groups(child)
 
 
 def process_standings(data: dict) -> dict:
@@ -33,16 +69,13 @@ def process_standings(data: dict) -> dict:
     try:
         standings_list = []
 
-        for child in data.get("children", []):
-            standings_data = child.get("standings", {}).get("entries", [])
+        for name, entries, links in _iter_groups(data):
             standings = []
-
-            for index, entry in enumerate(standings_data, start=1):
+            for index, entry in enumerate(entries, start=1):
                 team = entry.get("team", {})
                 logos = [l for l in (team.get("logos", []) or []) if l]
                 stats = {s["name"]: s.get("displayValue", "") for s in entry.get("stats", [])}
 
-                # Rank: prefer explicit rank stat, fall back to position in list
                 rank = int(float(stats.get("rank", index))) if "rank" in stats else (
                     entry.get("note", {}).get("rank", index)
                 )
@@ -51,33 +84,34 @@ def process_standings(data: dict) -> dict:
                     "rank": rank,
                     "team_id": team.get("id"),
                     "team_name": team.get("displayName"),
+                    "team_abbrev": team.get("abbreviation", ""),
                     "team_logo": logos[0].get("href", "") if logos else "",
-                    "points": stats.get("points", "N/A"),
-                    "games_played": stats.get("gamesPlayed", "N/A"),
-                    # Soccer/NFL use "wins"/"ties"/"losses"; rugby uses "gamesWon"/"gamesDrawn"/"gamesLost"
-                    "wins": stats.get("wins") or stats.get("gamesWon", "N/A"),
-                    "draws": stats.get("ties") or stats.get("gamesDrawn", "N/A"),
-                    "losses": stats.get("losses") or stats.get("gamesLost", "N/A"),
-                    "goals_for": stats.get("pointsFor", "N/A"),
-                    "goals_against": stats.get("pointsAgainst", "N/A"),
-                    # Soccer/NFL use "pointDifferential"; rugby uses "pointsDifference"
-                    "goal_difference": (
-                        stats.get("pointDifferential")
-                        or stats.get("pointsDifference", "N/A")
-                    ),
-                    # Rugby-specific (will be "N/A" for other sports)
-                    "bonus_points": stats.get("bonusPoints", "N/A"),
-                    "tries_for": stats.get("triesFor", "N/A"),
-                    "tries_against": stats.get("triesAgainst", "N/A"),
+                    "points": _stat(stats, "points"),
+                    "games_played": _stat(stats, "gamesPlayed"),
+                    "wins": _stat(stats, "wins", "gamesWon"),
+                    "draws": _stat(stats, "ties", "gamesDrawn"),
+                    "losses": _stat(stats, "losses", "gamesLost"),
+                    "goals_for": _stat(stats, "pointsFor"),
+                    "goals_against": _stat(stats, "pointsAgainst"),
+                    "goal_difference": _stat(stats, "pointDifferential", "pointsDifference"),
+                    # Rugby-specific
+                    "bonus_points": _stat(stats, "bonusPoints"),
+                    "tries_for": _stat(stats, "triesFor"),
+                    "tries_against": _stat(stats, "triesAgainst"),
+                    # US-league standings (NBA/NHL/MLB/NFL)
+                    "win_pct": _stat(stats, "winPercent"),
+                    "games_behind": _stat(stats, "gamesBehind"),
+                    "streak": _stat(stats, "streak"),
+                    "playoff_seed": _stat(stats, "playoffSeed"),
+                    "division_record": _stat(stats, "divisionRecord"),
+                    "ot_losses": _stat(stats, "otLosses", "OTLosses", "overtimeLosses"),
+                    "overall_record": _stat(stats, "overall", default=""),
                 })
 
-            links = child.get("standings", {}).get("links", [])
-            full_table_link = links[0].get("href", "") if links else ""
-
             standings_list.append({
-                "name": child.get("name", "Unknown"),
+                "name": name,
                 "standings": standings,
-                "full_table_link": full_table_link,
+                "full_table_link": links[0].get("href", "") if links else "",
             })
 
         # Determine current season dynamically — no hardcoded year

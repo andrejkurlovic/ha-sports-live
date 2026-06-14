@@ -87,7 +87,38 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_MODE, default=MODE_COMPETITION): vol.In(mode_options),
             }),
             errors=self._errors,
+            description_placeholders={
+                "sport": get_profile(self._data[CONF_SPORT]).display_name,
+                "features": self._capability_summary(self._data[CONF_SPORT]),
+            },
         )
+
+    @staticmethod
+    def _capability_summary(sport_id: str) -> str:
+        """Human-readable summary of what data this sport exposes, so users
+        don't create a Competition entry expecting standings/brackets that a
+        given sport (cricket/tennis/mma) simply doesn't have on ESPN."""
+        caps = get_profile(sport_id).capabilities
+        have = ["matches"]
+        if caps.supports_standings:
+            have.append("standings")
+        if caps.supports_bracket:
+            have.append("bracket")
+        if caps.supports_news:
+            have.append("news")
+        if caps.supports_summary:
+            have.append("live plays / leaders")
+        if caps.supports_lineup:
+            have.append("lineups")
+        missing = [n for n, ok in (
+            ("standings", caps.supports_standings),
+            ("bracket", caps.supports_bracket),
+            ("lineups", caps.supports_lineup),
+        ) if not ok]
+        text = "Available: " + ", ".join(have) + "."
+        if missing:
+            text += " Not available for this sport: " + ", ".join(missing) + "."
+        return text
 
     # ------------------------------------------------------------------ step_competition
     async def async_step_competition(self, user_input=None):

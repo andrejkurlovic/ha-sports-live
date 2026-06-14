@@ -10,7 +10,7 @@
       },
       "mode": {
         "title": "What to monitor",
-        "description": "Select what kind of sensor to create.",
+        "description": "Select what kind of sensor to create for {sport}.\n\n{features}",
         "data": {
           "mode": "Mode"
         }
