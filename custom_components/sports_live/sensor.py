@@ -205,6 +205,8 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         self._previous_match_details: dict = {}
         self._match_finished_dispatched: set = set()
         self._store: Store | None = None
+        # Summary enrichment cache: {event_id: {"key": (...), "data": {...}}}
+        self._summary_cache: dict = {}
 
     @property
     def name(self) -> str:
@@ -388,7 +390,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             computed = self._compute_next_match_attrs(next_match) if next_match else {}
             self._attr_extra_state_attributes = {
                 **parsed,
-                "matches": self._trim_matches_for_storage(matches),
+                "matches": self._trim_matches_for_storage(matches, include_enrichment=True),
                 **computed,
                 "competition_code": self._competition_code,
                 "sport": self._sport_profile.sport_id,
@@ -409,12 +411,40 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         event_id = match.get("event_id")
         if not event_id:
             return
-        raw_summary = await self.coordinator.fetch_summary(str(event_id))
-        if not raw_summary:
-            return
-        summary_data = await self.hass.async_add_executor_job(process_summary, raw_summary)
-        match.update(summary_data)
+        # Refetch the summary only when the match identity/score changes; a
+        # finished or static game reuses the cached parse every cycle.
+        cache_key = (str(event_id), match.get("state"),
+                     str(match.get("home_score")), str(match.get("away_score")))
+        cached = self._summary_cache.get(str(event_id))
+        if cached and cached["key"] == cache_key:
+            summary_data = cached["data"]
+        else:
+            raw_summary = await self.coordinator.fetch_summary(str(event_id))
+            if not raw_summary:
+                return
+            summary_data = await self.hass.async_add_executor_job(process_summary, raw_summary)
+            # Single-entry cache — only the currently tracked match matters.
+            self._summary_cache = {str(event_id): {"key": cache_key, "data": summary_data}}
+
+        self._merge_summary(match, summary_data)
+        # Re-apply the storage trim so the enriched fields reach
+        # attributes["matches"] (the trimmed copies the cards actually read).
+        attrs["matches"] = self._trim_matches_for_storage([match], include_enrichment=True)
         self.async_write_ha_state()
+
+    @staticmethod
+    def _merge_summary(match: dict, summary_data: dict):
+        """Merge summary fields into a match dict without clobbering live
+        scoreboard values (e.g. a win probability the predictor already set)."""
+        for k, v in summary_data.items():
+            if k == "summary_home_win_probability":
+                if match.get("home_win_probability") in (None, ""):
+                    match["home_win_probability"] = v
+            elif k == "summary_away_win_probability":
+                if match.get("away_win_probability") in (None, ""):
+                    match["away_win_probability"] = v
+            else:
+                match[k] = v
 
     # ------------------------------------------------------------------
     # Event dispatching
@@ -673,14 +703,31 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         "odds_details", "over_under",
     })
 
+    # Heavier per-match fields kept only for a single tracked match (next_match),
+    # never for the bulk match lists — they would blow the 16 KB recorder cap.
+    _MATCH_ENRICHMENT_FIELDS = frozenset({
+        "scoring_plays", "stat_leaders",
+        "key_events", "head_to_head",
+        "lineup_home", "lineup_away", "formation_home", "formation_away",
+        "home_top_scorer", "away_top_scorer",
+        "home_statistics", "away_statistics",
+    })
+
     @classmethod
-    def _trim_matches_for_storage(cls, matches: list) -> list:
-        """Strip heavy fields and keep live + upcoming + last 20 finished to stay under 16KB."""
+    def _trim_matches_for_storage(cls, matches: list, *, include_enrichment: bool = False) -> list:
+        """Keep live + upcoming + last 20 finished (by date) and strip heavy fields
+        to stay under the 16 KB recorder cap. When include_enrichment is set (single
+        tracked match), the summary-enrichment fields are retained as well."""
         live = [m for m in matches if m.get("state") == "in"]
         upcoming = [m for m in matches if m.get("state") == "pre"]
-        finished = [m for m in matches if m.get("state") == "post"]
+        finished = sorted(
+            (m for m in matches if m.get("state") == "post"),
+            key=lambda m: m.get("date_iso") or m.get("date") or "",
+        )
         trimmed = live + upcoming + finished[-20:]
-        return [{k: v for k, v in m.items() if k in cls._MATCH_STORAGE_FIELDS} for m in trimmed]
+        allow = cls._MATCH_STORAGE_FIELDS | cls._MATCH_ENRICHMENT_FIELDS if include_enrichment \
+            else cls._MATCH_STORAGE_FIELDS
+        return [{k: v for k, v in m.items() if k in allow} for m in trimmed]
 
     @staticmethod
     def _safe_score(v) -> int:

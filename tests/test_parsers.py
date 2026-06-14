@@ -14,6 +14,7 @@ for mod in ["homeassistant", "homeassistant.helpers",
             "homeassistant.helpers.update_coordinator",
             "homeassistant.helpers.entity",
             "homeassistant.helpers.storage",
+            "homeassistant.helpers.aiohttp_client",
             "homeassistant.components",
             "homeassistant.components.sensor",
             "homeassistant.config_entries",
@@ -391,3 +392,104 @@ class TestUKBroadcastRights:
         matches = [{"broadcast": ""}]
         enrich_matches_with_uk_broadcast(matches, "unknown.xyz")
         assert matches[0]["broadcast_uk"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Home/away resolution by homeAway field (not array index)
+# ---------------------------------------------------------------------------
+
+class TestHomeAwayResolution:
+    def _event(self, competitors):
+        return {
+            "events": [{
+                "id": "1",
+                "date": "2026-06-14T18:00Z",
+                "status": {"type": {"state": "post", "description": "Final"}},
+                "competitions": [{"competitors": competitors}],
+            }]
+        }
+
+    def test_away_listed_first_still_maps_correctly(self):
+        from custom_components.sports_live.parsers.scoreboard import process_scoreboard
+        # ESPN sometimes lists the away competitor at index 0.
+        competitors = [
+            {"homeAway": "away", "score": "1",
+             "team": {"displayName": "Away FC"}},
+            {"homeAway": "home", "score": "3",
+             "team": {"displayName": "Home FC"}},
+        ]
+        result = process_scoreboard(self._event(competitors), _mock_hass())
+        m = result["matches"][0]
+        assert m["home_team"] == "Home FC"
+        assert m["away_team"] == "Away FC"
+        assert m["home_score"] == "3"
+        assert m["away_score"] == "1"
+
+    def test_index_fallback_when_homeaway_absent(self):
+        from custom_components.sports_live.parsers.scoreboard import process_scoreboard
+        competitors = [
+            {"score": "2", "team": {"displayName": "First"}},
+            {"score": "0", "team": {"displayName": "Second"}},
+        ]
+        result = process_scoreboard(self._event(competitors), _mock_hass())
+        m = result["matches"][0]
+        assert m["home_team"] == "First"
+        assert m["away_team"] == "Second"
+
+
+# ---------------------------------------------------------------------------
+# Summary parser — scoring plays, win probability, stat leaders (all sports)
+# ---------------------------------------------------------------------------
+
+class TestSummaryParser:
+    def test_parses_scoring_plays(self):
+        from custom_components.sports_live.parsers.summary import process_summary
+        data = {"plays": [
+            {"scoringPlay": False, "text": "Jump ball"},
+            {"scoringPlay": True, "text": "Brunson makes 3pt",
+             "homeScore": 55, "awayScore": 48,
+             "period": {"displayValue": "3rd Quarter"},
+             "clock": {"displayValue": "7:12"}, "team": {"id": "18"},
+             "scoreValue": 3},
+        ]}
+        out = process_summary(data)
+        assert len(out["scoring_plays"]) == 1
+        sp = out["scoring_plays"][0]
+        assert sp["home_score"] == 55
+        assert sp["period"] == "3rd Quarter"
+        assert sp["team_id"] == "18"
+
+    def test_win_probability_from_summary(self):
+        from custom_components.sports_live.parsers.summary import process_summary
+        data = {"winprobability": [
+            {"homeWinPercentage": 0.4, "tiePercentage": 0.0},
+            {"homeWinPercentage": 0.93, "tiePercentage": 0.0},
+        ]}
+        out = process_summary(data)
+        assert out["summary_home_win_probability"] == 93.0
+        assert out["summary_away_win_probability"] == 7.0
+
+    def test_stat_leaders_parsed(self):
+        from custom_components.sports_live.parsers.summary import process_summary
+        data = {"leaders": [{
+            "team": {"id": "5", "displayName": "Lakers"},
+            "leaders": [
+                {"name": "points", "displayName": "Points",
+                 "leaders": [{"displayValue": "30",
+                              "athlete": {"displayName": "Player A",
+                                          "shortName": "A. Player"}}]},
+            ],
+        }]}
+        out = process_summary(data)
+        assert len(out["stat_leaders"]) == 1
+        tl = out["stat_leaders"][0]
+        assert tl["team_name"] == "Lakers"
+        assert tl["categories"][0]["athlete"] == "Player A"
+        assert tl["categories"][0]["value"] == "30"
+
+    def test_empty_summary_safe(self):
+        from custom_components.sports_live.parsers.summary import process_summary
+        out = process_summary({})
+        assert out["scoring_plays"] == []
+        assert out["stat_leaders"] == []
+        assert "summary_home_win_probability" not in out

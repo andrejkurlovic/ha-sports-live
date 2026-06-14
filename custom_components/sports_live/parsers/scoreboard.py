@@ -160,8 +160,10 @@ def _parse_event(raw: dict, hass) -> dict | None:
         if len(competitors) < 2:
             return None
 
-        home = competitors[0]
-        away = competitors[1]
+        # ESPN does not guarantee competitors[0] is home — resolve by the
+        # explicit homeAway field, falling back to index order if absent.
+        home = next((c for c in competitors if c.get("homeAway") == "home"), competitors[0])
+        away = next((c for c in competitors if c.get("homeAway") == "away"), competitors[1])
 
         home_team_data = home.get("team", {})
         away_team_data = away.get("team", {})

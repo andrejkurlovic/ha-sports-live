@@ -6,13 +6,12 @@ Flow:
 Options flow exposes scan_interval and recent_match_hours.
 """
 from __future__ import annotations
-import asyncio
-import json
 import aiohttp
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     _LOGGER, DOMAIN,
@@ -213,11 +212,11 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not url:
             return {}
         try:
-            async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-                async with session.get(url, headers=_ESPN_HEADERS) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-                    return {lg["slug"]: lg["name"] for lg in data.get("leagues", [])}
+            session = async_get_clientsession(self.hass)
+            async with session.get(url, headers=_ESPN_HEADERS, timeout=_TIMEOUT) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                return {lg["slug"]: lg["name"] for lg in data.get("leagues", [])}
         except Exception as e:
             _LOGGER.error("Failed to load competitions for %s: %s", profile.sport_id, e)
             return {}
@@ -225,16 +224,16 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _fetch_teams(self, profile, competition_code: str) -> None:
         url = profile.teams_url(competition_code)
         try:
-            async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-                async with session.get(url, headers=_ESPN_HEADERS) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-                    sports = data.get("sports", [{}])
-                    leagues = sports[0].get("leagues", [{}]) if sports else []
-                    self._teams = [
-                        {"id": t["team"]["id"], "displayName": t["team"]["displayName"]}
-                        for lg in leagues for t in lg.get("teams", [])
-                    ]
+            session = async_get_clientsession(self.hass)
+            async with session.get(url, headers=_ESPN_HEADERS, timeout=_TIMEOUT) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                sports = data.get("sports", [{}])
+                leagues = sports[0].get("leagues", [{}]) if sports else []
+                self._teams = [
+                    {"id": t["team"]["id"], "displayName": t["team"]["displayName"]}
+                    for lg in leagues for t in lg.get("teams", [])
+                ]
         except Exception as e:
             _LOGGER.error("Failed to load teams: %s", e)
             self._teams = []

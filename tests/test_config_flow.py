@@ -17,6 +17,7 @@ _MOCK_MODULES = [
     "homeassistant.helpers.update_coordinator",
     "homeassistant.helpers.entity",
     "homeassistant.helpers.storage",
+    "homeassistant.helpers.aiohttp_client",
     "homeassistant.components",
     "homeassistant.components.sensor",
     "homeassistant.config_entries",
@@ -112,9 +113,11 @@ class TestFetchCompetitions:
         from custom_components.sports_live.sports import get_profile
 
         flow = SportsLiveConfigFlow()
+        flow.hass = MagicMock()
         mock_session = _make_aiohttp_mock(SAMPLE_COMPETITIONS)
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch("custom_components.sports_live.config_flow.async_get_clientsession",
+                   return_value=mock_session):
             profile = get_profile("soccer")
             comps = await flow._fetch_competitions(profile)
 
@@ -154,9 +157,11 @@ class TestFetchTeams:
         from custom_components.sports_live.sports import get_profile
 
         flow = SportsLiveConfigFlow()
+        flow.hass = MagicMock()
         mock_session = _make_aiohttp_mock(SAMPLE_TEAMS)
 
-        with patch("aiohttp.ClientSession", return_value=mock_session):
+        with patch("custom_components.sports_live.config_flow.async_get_clientsession",
+                   return_value=mock_session):
             profile = get_profile("soccer")
             await flow._fetch_teams(profile, "ita.1")
 

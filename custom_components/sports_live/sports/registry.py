@@ -89,7 +89,7 @@ _NFL = SportProfile(
         supports_news=True,
         supports_next_match=True,
         supports_team_schedule=True,
-        supports_summary=False,
+        supports_summary=True,
         supports_bracket=True,     # NFL playoffs
         supports_lineup=False,
     ),
@@ -193,7 +193,7 @@ _NBA = SportProfile(
         supports_news=True,
         supports_next_match=True,
         supports_team_schedule=True,
-        supports_summary=False,
+        supports_summary=True,
         supports_bracket=True,
         supports_lineup=False,
     ),
@@ -218,7 +218,9 @@ _NBA = SportProfile(
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/basketball/{competition}/news?limit=15"
     ),
-    _summary_url_tmpl="",
+    _summary_url_tmpl=(
+        "https://site.api.espn.com/apis/site/v2/sports/basketball/{competition}/summary?event={event_id}"
+    ),
     _team_schedule_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/basketball/{competition}/teams/{team_id}/schedule"
     ),
@@ -235,7 +237,7 @@ _NHL = SportProfile(
         supports_news=True,
         supports_next_match=True,
         supports_team_schedule=True,
-        supports_summary=False,
+        supports_summary=True,
         supports_bracket=True,
         supports_lineup=False,
     ),
@@ -260,7 +262,9 @@ _NHL = SportProfile(
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/hockey/{competition}/news?limit=15"
     ),
-    _summary_url_tmpl="",
+    _summary_url_tmpl=(
+        "https://site.api.espn.com/apis/site/v2/sports/hockey/{competition}/summary?event={event_id}"
+    ),
     _team_schedule_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/hockey/{competition}/teams/{team_id}/schedule"
     ),
@@ -277,7 +281,7 @@ _MLB = SportProfile(
         supports_news=True,
         supports_next_match=True,
         supports_team_schedule=True,
-        supports_summary=False,
+        supports_summary=True,
         supports_bracket=True,
         supports_lineup=False,
     ),
@@ -302,7 +306,9 @@ _MLB = SportProfile(
     _news_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/baseball/{competition}/news?limit=15"
     ),
-    _summary_url_tmpl="",
+    _summary_url_tmpl=(
+        "https://site.api.espn.com/apis/site/v2/sports/baseball/{competition}/summary?event={event_id}"
+    ),
     _team_schedule_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/baseball/{competition}/teams/{team_id}/schedule"
     ),

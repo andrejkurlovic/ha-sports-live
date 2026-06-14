@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -41,9 +42,10 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
         self._team_id = entry.data.get(CONF_TEAM_ID)
         self._profile = get_profile(self._sport_id)
 
-        # Dynamically resolved season dates (updated each cycle)
+        # Dynamically resolved season dates (cached; refreshed at most daily)
         self._season_start: datetime | None = None
         self._season_end: datetime | None = None
+        self._season_resolved_at: datetime | None = None
 
     # ------------------------------------------------------------------
     # Core update
@@ -112,27 +114,38 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
     async def _fetch(self, url: str) -> dict:
         if not url:
             return {}
+        # Reuse Home Assistant's shared aiohttp session instead of building one
+        # per request (HA best practice; avoids session churn each cycle).
+        session = async_get_clientsession(self.hass)
         retries = 0
         while retries < 3:
             try:
-                async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-                    async with session.get(url, headers=_ESPN_HEADERS) as resp:
-                        if resp.status == 200:
-                            raw = await resp.read()
-                            return await self.hass.async_add_executor_job(json.loads, raw)
-                        if resp.status in (404, 500):
-                            _LOGGER.warning("ESPN %s returned %s", url, resp.status)
-                            return {}
-                        await asyncio.sleep(5)
-                        retries += 1
+                async with session.get(url, headers=_ESPN_HEADERS, timeout=_TIMEOUT) as resp:
+                    if resp.status == 200:
+                        raw = await resp.read()
+                        return await self.hass.async_add_executor_job(json.loads, raw)
+                    if resp.status in (404, 500):
+                        _LOGGER.warning("ESPN %s returned %s", url, resp.status)
+                        return {}
+                    await asyncio.sleep(5)
+                    retries += 1
             except (aiohttp.ClientError, asyncio.TimeoutError):
                 await asyncio.sleep(5)
                 retries += 1
         return {}
 
     async def _resolve_season_dates(self):
-        """Fetch ESPN scoreboard once to extract calendarStartDate/EndDate."""
+        """Fetch ESPN scoreboard once to extract calendarStartDate/EndDate.
+
+        Cached and refreshed at most once per day — season calendar bounds do
+        not change mid-cycle, so re-fetching the undated scoreboard every poll
+        would double the heaviest ESPN call for no benefit.
+        """
         if self._competition in ("", None):
+            return
+        now = datetime.now()
+        if (self._season_start and self._season_end and self._season_resolved_at
+                and (now - self._season_resolved_at) < timedelta(hours=24)):
             return
         url = self._profile.scoreboard_url_plain(self._competition)
         try:
@@ -148,9 +161,10 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Could not resolve season dates: %s", e)
 
         if not self._season_start or not self._season_end:
-            now = datetime.now()
             self._season_start = now - timedelta(days=240)
             self._season_end = now + timedelta(days=240)
+
+        self._season_resolved_at = now
 
     def _date_range_strs(self) -> tuple[str, str]:
         s = (self._season_start or datetime.now() - timedelta(days=240)).strftime("%Y%m%d")
