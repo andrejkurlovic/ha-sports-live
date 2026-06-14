@@ -206,7 +206,9 @@ def _parse_event(raw: dict, hass) -> dict | None:
         situation = comp.get("situation") or {}
         predictor = comp.get("predictor") or {}
         odds_list = comp.get("odds") or []
-        odds = odds_list[0] if odds_list else {}
+        # ESPN returns odds as [null] for TBD/placeholder fixtures (e.g. World
+        # Cup group slots), so guard against a None first element.
+        odds = (odds_list[0] if odds_list else None) or {}
 
         return {
             "event_id": raw.get("id"),

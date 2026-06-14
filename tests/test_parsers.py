@@ -493,3 +493,23 @@ class TestSummaryParser:
         assert out["scoring_plays"] == []
         assert out["stat_leaders"] == []
         assert "summary_home_win_probability" not in out
+
+
+class TestOddsPlaceholderEvent:
+    """Regression: ESPN returns odds:[null] for TBD fixtures (World Cup slots)."""
+    def test_none_odds_element_does_not_crash(self):
+        from custom_components.sports_live.parsers.scoreboard import process_scoreboard
+        data = {"events": [{
+            "id": "1", "date": "2026-06-14T18:00Z",
+            "status": {"type": {"state": "pre", "description": "Scheduled"}},
+            "competitions": [{
+                "competitors": [
+                    {"homeAway": "home", "team": {"displayName": "Home FC"}},
+                    {"homeAway": "away", "team": {"displayName": "Away FC"}},
+                ],
+                "odds": [None],
+            }],
+        }]}
+        result = process_scoreboard(data, _mock_hass())
+        assert len(result["matches"]) == 1
+        assert result["matches"][0]["odds_details"] == ""
