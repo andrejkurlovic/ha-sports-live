@@ -74,3 +74,9 @@ class SportProfile:
 
     def all_today_url(self) -> str:
         return self._all_today_url
+
+    def has_news_url(self) -> bool:
+        return bool(self._news_url_tmpl)
+
+    def has_team_schedule_url(self) -> bool:
+        return bool(self._team_schedule_url_tmpl)

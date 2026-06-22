@@ -5,7 +5,6 @@ to one type of data (standings, matches, next_match, news, bracket, etc.).
 """
 from __future__ import annotations
 
-import random
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -25,6 +24,7 @@ from .const import (
     SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
     EVENT_SCORE, EVENT_DISCIPLINE, EVENT_MATCH_FINISHED,
     EVENT_LEGACY_GOAL, EVENT_LEGACY_YELLOW, EVENT_LEGACY_RED, EVENT_LEGACY_FINISHED,
+    OPT_RECENT_MATCH_HOURS,
 )
 from .coordinator import SportsLiveCoordinator
 from .sports import get_profile
@@ -94,7 +94,7 @@ async def async_setup_entry(
                 competition_code=competition,
             ))
 
-        if (profile.capabilities.supports_news and profile._news_url_tmpl):
+        if (profile.capabilities.supports_news and profile.has_news_url()):
             entities.append(SportsLiveSensor(
                 coordinator, entry,
                 sensor_type=SENSOR_NEWS,
@@ -134,7 +134,7 @@ async def async_setup_entry(
             competition_code=competition,
             team_id=team_id,
         ))
-        if profile._team_schedule_url_tmpl and team_id:
+        if profile.has_team_schedule_url() and team_id:
             entities.append(SportsLiveSensor(
                 coordinator, entry,
                 sensor_type=SENSOR_SCHEDULE_ALL,
@@ -167,7 +167,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         self._team_name = team_name
         self._competition_code = competition_code
         self._team_id = team_id
-        self._recent_match_hours = entry.options.get("recent_match_hours", recent_match_hours)
+        self._recent_match_hours = entry.options.get(OPT_RECENT_MATCH_HOURS, recent_match_hours)
 
         # Stable unique_suffix used for entity_id and unique_id
         self._unique_suffix = unique_suffix.replace("-", "_").lower()
@@ -294,79 +294,34 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
 
         elif stype in (SENSOR_MATCHES, SENSOR_ALL_TODAY):
             raw = data.get(stype) or {}
-            recent_hrs = self._entry.options.get("recent_match_hours", 24)
-            parsed = process_scoreboard(
-                raw, self.hass,
-                start_date=self.coordinator._season_start.strftime("%Y-%m-%d") if self.coordinator._season_start else None,
-                end_date=self.coordinator._season_end.strftime("%Y-%m-%d") if self.coordinator._season_end else None,
-                recent_match_hours=recent_hrs,
+            self._attr_extra_state_attributes = self._build_scoreboard_attrs(
+                raw, team_name=None, season_filtered=True,
+                include_league_info=True, include_team_info=False, include_competition_code=True,
             )
-            matches = parsed.get("matches", [])
-            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
-            self._attr_native_value = self._describe_matches(matches)
-            computed = self._compute_all_matches_attrs(matches)
-            self._attr_extra_state_attributes = {
-                "league_info": parsed.get("league_info", []),
-                "matches": self._trim_matches_for_storage(matches),
-                **computed,
-                "competition_code": self._competition_code,
-                "sport": self._sport_profile.sport_id,
-            }
 
         elif stype == SENSOR_SCHEDULE:
             raw = data.get(SENSOR_MATCHES) or {}
-            recent_hrs = self._entry.options.get("recent_match_hours", 24)
-            parsed = process_scoreboard(
-                raw, self.hass,
-                team_name=self._team_name,
-                start_date=self.coordinator._season_start.strftime("%Y-%m-%d") if self.coordinator._season_start else None,
-                end_date=self.coordinator._season_end.strftime("%Y-%m-%d") if self.coordinator._season_end else None,
-                recent_match_hours=recent_hrs,
+            self._attr_extra_state_attributes = self._build_scoreboard_attrs(
+                raw, team_name=self._team_name, season_filtered=True,
+                include_league_info=True, include_team_info=True, include_competition_code=True,
             )
-            matches = parsed.get("matches", [])
-            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
-            self._attr_native_value = self._describe_matches(matches)
-            computed = self._compute_all_matches_attrs(matches)
-            self._attr_extra_state_attributes = {
-                "league_info": parsed.get("league_info", []),
-                "team_name": self._team_name,
-                "team_logo": parsed.get("team_logo"),
-                "matches": self._trim_matches_for_storage(matches),
-                **computed,
-                "competition_code": self._competition_code,
-                "sport": self._sport_profile.sport_id,
-            }
 
         elif stype == SENSOR_SCHEDULE_ALL:
             raw = data.get(SENSOR_SCHEDULE_ALL) or {}
-            recent_hrs = self._entry.options.get("recent_match_hours", 24)
-            parsed = process_scoreboard(
-                raw, self.hass,
-                team_name=self._team_name,
-                recent_match_hours=recent_hrs,
+            self._attr_extra_state_attributes = self._build_scoreboard_attrs(
+                raw, team_name=self._team_name, season_filtered=False,
+                include_league_info=False, include_team_info=True, include_competition_code=False,
             )
-            matches = parsed.get("matches", [])
-            enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
-            self._attr_native_value = self._describe_matches(matches)
-            computed = self._compute_all_matches_attrs(matches)
-            self._attr_extra_state_attributes = {
-                "team_name": self._team_name,
-                "team_logo": parsed.get("team_logo"),
-                "matches": self._trim_matches_for_storage(matches),
-                **computed,
-                "sport": self._sport_profile.sport_id,
-            }
 
         elif stype == SENSOR_NEXT_MATCH:
             raw = data.get(SENSOR_MATCHES) or {}
-            recent_hrs = self._entry.options.get("recent_match_hours", 24)
             parsed = process_scoreboard(
                 raw, self.hass,
                 team_name=self._team_name,
                 next_match_only=True,
                 start_date=self.coordinator._season_start.strftime("%Y-%m-%d") if self.coordinator._season_start else None,
                 end_date=self.coordinator._season_end.strftime("%Y-%m-%d") if self.coordinator._season_end else None,
-                recent_match_hours=recent_hrs,
+                recent_match_hours=self._recent_match_hours,
             )
             next_match = parsed.get("next_match")
             matches = parsed.get("matches", [])
@@ -402,6 +357,40 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 self.hass.async_create_task(
                     self._enrich_with_summary(next_match, self._attr_extra_state_attributes)
                 )
+
+    def _build_scoreboard_attrs(self, raw: dict, *, team_name: str | None, season_filtered: bool,
+                                 include_league_info: bool, include_team_info: bool,
+                                 include_competition_code: bool) -> dict:
+        """Shared by SENSOR_MATCHES/ALL_TODAY/SCHEDULE/SCHEDULE_ALL — they only
+        differ in which attribute keys are present and whether the season's
+        start/end date range narrows the fetch (schedule_all wants every
+        match for the team, not just this season)."""
+        season_start = self.coordinator._season_start if season_filtered else None
+        season_end = self.coordinator._season_end if season_filtered else None
+        parsed = process_scoreboard(
+            raw, self.hass,
+            team_name=team_name,
+            start_date=season_start.strftime("%Y-%m-%d") if season_start else None,
+            end_date=season_end.strftime("%Y-%m-%d") if season_end else None,
+            recent_match_hours=self._recent_match_hours,
+        )
+        matches = parsed.get("matches", [])
+        enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
+        self._attr_native_value = self._describe_matches(matches)
+        computed = self._compute_all_matches_attrs(matches)
+
+        attrs: dict = {}
+        if include_league_info:
+            attrs["league_info"] = parsed.get("league_info", [])
+        if include_team_info:
+            attrs["team_name"] = self._team_name
+            attrs["team_logo"] = parsed.get("team_logo")
+        attrs["matches"] = self._trim_matches_for_storage(matches)
+        attrs.update(computed)
+        if include_competition_code:
+            attrs["competition_code"] = self._competition_code
+        attrs["sport"] = self._sport_profile.sport_id
+        return attrs
 
     # ------------------------------------------------------------------
     # Summary enrichment
@@ -473,7 +462,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         if live:
             computed.update(self._live_match_attrs(live[0]))
         if upcoming:
-            computed.update(self._next_match_attrs(upcoming[0]))
+            computed.update(self._compute_next_match_attrs(upcoming[0]))
         recent = [m for m in finished if is_within_last_48_hours(m.get("date_iso") or m.get("date"))]
         if recent:
             lm = recent[0]
@@ -513,9 +502,6 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             "next_match_away_form": match.get("away_form"),
             "next_match_season_info": match.get("season_info"),
         }
-
-    def _next_match_attrs(self, match: dict) -> dict:
-        return self._compute_next_match_attrs(match)
 
     def _live_match_attrs(self, match: dict) -> dict:
         return {

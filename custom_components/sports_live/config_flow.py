@@ -18,6 +18,7 @@ from .const import (
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_COMPETITION_NAME,
     CONF_TEAM_ID, CONF_TEAM_NAME,
     MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    OPT_SCAN_INTERVAL, OPT_RECENT_MATCH_HOURS,
 )
 from .sports import list_sports, get_profile
 from .sports.registry import RUGBY_COMPETITIONS, TENNIS_COMPETITIONS
@@ -280,12 +281,12 @@ class SportsLiveOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        scan = self._config_entry.options.get("scan_interval", 3)
-        hours = self._config_entry.options.get("recent_match_hours", 24)
+        scan = self._config_entry.options.get(OPT_SCAN_INTERVAL, 3)
+        hours = self._config_entry.options.get(OPT_RECENT_MATCH_HOURS, 24)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Optional("scan_interval", default=scan): vol.In([1, 2, 3, 5, 10, 15, 30]),
-                vol.Optional("recent_match_hours", default=hours): vol.In([6, 12, 24, 48]),
+                vol.Optional(OPT_SCAN_INTERVAL, default=scan): vol.In([1, 2, 3, 5, 10, 15, 30]),
+                vol.Optional(OPT_RECENT_MATCH_HOURS, default=hours): vol.In([6, 12, 24, 48]),
             }),
         )

@@ -13,7 +13,7 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, CONF_MODE, _LOGGER
+from .const import DOMAIN, CONF_MODE, OPT_SCAN_INTERVAL, _LOGGER
 from .coordinator import SportsLiveCoordinator
 
 PLATFORMS = ["sensor"]
@@ -22,7 +22,7 @@ PLATFORMS = ["sensor"]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
-    update_interval = timedelta(minutes=entry.options.get("scan_interval", 3))
+    update_interval = timedelta(minutes=entry.options.get(OPT_SCAN_INTERVAL, 3))
     coordinator = SportsLiveCoordinator(hass, entry, update_interval)
     await coordinator.async_config_entry_first_refresh()
 
