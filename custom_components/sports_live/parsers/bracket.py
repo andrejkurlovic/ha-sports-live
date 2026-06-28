@@ -75,18 +75,22 @@ def process_bracket(data: dict) -> dict:
             if not (is_first_leg or is_second_leg or is_single):
                 continue
 
-            # When the note is empty but season_slug indicates the round, synthesize a label.
-            # This handles FIFA WC 2026+ which puts round info in event.season.slug, not notes.
-            if is_single and not note_text and season_slug:
-                _SLUG_MAP = {
-                    "round-of-64": "Round of 64", "round-of-32": "Round of 32",
-                    "round-of-16": "Round of 16", "quarterfinal": "Quarterfinal",
-                    "semifinal": "Semifinal", "3rd-place": "Third Place", "final": "Final",
-                }
-                for _k, _v in _SLUG_MAP.items():
-                    if _k in season_slug:
-                        note_text = _v
-                        break
+            # Synthesize the round label from season_slug when available.
+            # The slug label always takes precedence over the raw ESPN note text,
+            # because notes can become result descriptions ("Team wins on penalties")
+            # after the match ends, which would make a bad round label.
+            _SLUG_MAP = {
+                "round-of-64": "Round of 64", "round-of-32": "Round of 32",
+                "round-of-16": "Round of 16", "quarterfinal": "Quarterfinal",
+                "semifinal": "Semifinal", "3rd-place": "Third Place", "final": "Final",
+            }
+            slug_label = ""
+            for _k, _v in _SLUG_MAP.items():
+                if _k in season_slug:
+                    slug_label = _v
+                    break
+            if slug_label:
+                note_text = slug_label  # prefer slug label over raw ESPN note
 
             competitors = c.get("competitors", []) or []
             home = next((x for x in competitors if x.get("homeAway") == "home"), None)
