@@ -76,21 +76,18 @@ def process_bracket(data: dict) -> dict:
                 continue
 
             # Synthesize the round label from season_slug when available.
-            # The slug label always takes precedence over the raw ESPN note text,
-            # because notes can become result descriptions ("Team wins on penalties")
-            # after the match ends, which would make a bad round label.
+            # This is used as the display label (note_for_display) and for grouping,
+            # but the original note_text is kept for winner-detection (penalty parsing).
             _SLUG_MAP = {
                 "round-of-64": "Round of 64", "round-of-32": "Round of 32",
                 "round-of-16": "Round of 16", "quarterfinal": "Quarterfinal",
                 "semifinal": "Semifinal", "3rd-place": "Third Place", "final": "Final",
             }
-            slug_label = ""
+            note_for_display = note_text  # default: use ESPN note as display label
             for _k, _v in _SLUG_MAP.items():
                 if _k in season_slug:
-                    slug_label = _v
+                    note_for_display = _v  # slug label overrides result descriptions
                     break
-            if slug_label:
-                note_text = slug_label  # prefer slug label over raw ESPN note
 
             competitors = c.get("competitors", []) or []
             home = next((x for x in competitors if x.get("homeAway") == "home"), None)
@@ -121,7 +118,7 @@ def process_bracket(data: dict) -> dict:
                 "away_score": _safe_int(away.get("score")),
                 "date": e.get("date", ""),
                 "state": ((e.get("status") or {}).get("type") or {}).get("state", ""),
-                "note": note_text,
+                "note": note_for_display,
             }
 
             if is_first_leg:
