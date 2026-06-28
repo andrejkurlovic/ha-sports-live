@@ -15,7 +15,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     _LOGGER, DOMAIN,
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_TEAM_ID,
-    MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    CONF_TEAM_IDS, CONF_TEAM_NAMES,
+    MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
     SENSOR_STANDINGS, SENSOR_MATCHES, SENSOR_NEXT_MATCH, SENSOR_SCHEDULE,
     SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_ALL_TODAY,
 )
@@ -23,6 +24,10 @@ from .sports import get_profile
 
 _ESPN_HEADERS = {"Accept-Language": "en"}
 _TIMEOUT = aiohttp.ClientTimeout(total=15)
+
+# Module-level season-dates cache: (espn_sport, competition) → (start, end, resolved_at)
+# Shared across all coordinators so N entries in the same competition only fetch dates once.
+_SEASON_DATES_CACHE: dict[tuple, tuple] = {}
 
 
 class SportsLiveCoordinator(DataUpdateCoordinator):
@@ -40,9 +45,11 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
         self._sport_id = entry.data.get(CONF_SPORT)
         self._competition = entry.data.get(CONF_COMPETITION_CODE)
         self._team_id = entry.data.get(CONF_TEAM_ID)
+        self._team_ids: list = entry.data.get(CONF_TEAM_IDS, [])
+        self._team_names: list = entry.data.get(CONF_TEAM_NAMES, [])
         self._profile = get_profile(self._sport_id)
 
-        # Dynamically resolved season dates (cached; refreshed at most daily)
+        # Dynamically resolved season dates (per-coordinator; refreshed at most daily)
         self._season_start: datetime | None = None
         self._season_end: datetime | None = None
         self._season_resolved_at: datetime | None = None
@@ -86,16 +93,31 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 await self._resolve_season_dates()
                 start, end = self._date_range_strs()
 
-                # Competition scoreboard filtered to team
+                # Competition scoreboard filtered to team in Python — one call covers all
                 scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
                 result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
 
-                # Cross-competition team schedule
+                # Cross-competition team schedule (per-team, ESPN has no batch endpoint)
                 if (self._team_id and self._profile._team_schedule_url_tmpl):
                     schedule_url = self._profile.team_schedule_url(
                         str(self._team_id), competition=self._competition or ""
                     )
                     result[SENSOR_SCHEDULE_ALL] = await self._fetch(schedule_url)
+
+            elif mode == MODE_MULTI_TEAM:
+                # One scoreboard covers all teams; team_schedule still per-team (no batch API).
+                await self._resolve_season_dates()
+                start, end = self._date_range_strs()
+
+                scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
+                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+
+                for team_id in self._team_ids:
+                    if team_id and self._profile._team_schedule_url_tmpl:
+                        schedule_url = self._profile.team_schedule_url(
+                            str(team_id), competition=self._competition or ""
+                        )
+                        result[f"schedule_all_{team_id}"] = await self._fetch(schedule_url)
 
         except Exception as exc:
             raise UpdateFailed(f"ESPN fetch failed: {exc}") from exc
@@ -132,16 +154,31 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
     async def _resolve_season_dates(self):
         """Fetch ESPN scoreboard once to extract calendarStartDate/EndDate.
 
-        Cached and refreshed at most once per day — season calendar bounds do
-        not change mid-cycle, so re-fetching the undated scoreboard every poll
-        would double the heaviest ESPN call for no benefit.
+        Two-level cache:
+        1. Per-coordinator (24h TTL) — fast path, avoids even the dict lookup.
+        2. Module-level keyed by (sport, competition) — shared across all coordinators
+           for the same competition so N entries only hit ESPN once per day.
         """
         if self._competition in ("", None):
             return
         now = datetime.now()
+
+        # Fast path: this coordinator already has fresh dates
         if (self._season_start and self._season_end and self._season_resolved_at
                 and (now - self._season_resolved_at) < timedelta(hours=24)):
             return
+
+        # Cross-coordinator cache: another entry for same sport+competition resolved already
+        cache_key = (self._profile.espn_sport, self._competition)
+        cached = _SEASON_DATES_CACHE.get(cache_key)
+        if cached:
+            start, end, resolved_at = cached
+            if (now - resolved_at) < timedelta(hours=24):
+                self._season_start = start
+                self._season_end = end
+                self._season_resolved_at = resolved_at
+                return
+
         url = self._profile.scoreboard_url_plain(self._competition)
         try:
             data = await self._fetch(url)
@@ -160,6 +197,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
             self._season_end = now + timedelta(days=240)
 
         self._season_resolved_at = now
+        _SEASON_DATES_CACHE[cache_key] = (self._season_start, self._season_end, self._season_resolved_at)
 
     def _date_range_strs(self) -> tuple[str, str]:
         s = (self._season_start or datetime.now() - timedelta(days=240)).strftime("%Y%m%d")

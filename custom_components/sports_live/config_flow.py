@@ -12,12 +12,13 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import selector
 
 from .const import (
     _LOGGER, DOMAIN,
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_COMPETITION_NAME,
-    CONF_TEAM_ID, CONF_TEAM_NAME,
-    MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    CONF_TEAM_ID, CONF_TEAM_NAME, CONF_TEAM_IDS, CONF_TEAM_NAMES,
+    MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
     OPT_SCAN_INTERVAL, OPT_RECENT_MATCH_HOURS,
 )
 from .sports import list_sports, get_profile
@@ -78,6 +79,7 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         mode_options = {
             MODE_COMPETITION: "Competition / League",
             MODE_TEAM: "Specific Team",
+            MODE_MULTI_TEAM: "Multiple Teams (one entry, shared scoreboard fetch)",
             MODE_ALL_TODAY: "All Matches Today",
             MODE_NEWS: "News Feed",
             MODE_MANUAL_TEAM: "Manual Team ID",
@@ -139,6 +141,10 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self._fetch_teams(profile, code)
                 return await self.async_step_team()
 
+            if mode == MODE_MULTI_TEAM:
+                await self._fetch_teams(profile, code)
+                return await self.async_step_multi_team()
+
             # competition or news modes
             prefix = "News" if mode == MODE_NEWS else profile.display_name
             return self.async_create_entry(
@@ -191,6 +197,49 @@ class SportsLiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="team",
             data_schema=vol.Schema({
                 vol.Required(CONF_TEAM_NAME): vol.In(team_opts) if team_opts else str,
+            }),
+            errors=self._errors,
+        )
+
+    # ------------------------------------------------------------------ step_multi_team
+    async def async_step_multi_team(self, user_input=None):
+        """Step 4 (multi-team mode): choose multiple teams from a multi-select."""
+        self._errors = {}
+        if user_input is not None:
+            team_names_chosen = user_input.get(CONF_TEAM_NAMES) or []
+            if not team_names_chosen:
+                self._errors["base"] = "no_teams_selected"
+            else:
+                team_ids_chosen = [
+                    next((t["id"] for t in self._teams if t["displayName"] == n), None)
+                    for n in team_names_chosen
+                ]
+                self._data[CONF_TEAM_NAMES] = team_names_chosen
+                self._data[CONF_TEAM_IDS] = team_ids_chosen
+                profile = get_profile(self._data[CONF_SPORT])
+                comp_name = self._data.get(CONF_COMPETITION_NAME, "")
+                summary = ", ".join(team_names_chosen[:3])
+                if len(team_names_chosen) > 3:
+                    summary += f" +{len(team_names_chosen) - 3}"
+                return self.async_create_entry(
+                    title=f"{profile.display_name} — {comp_name} — {summary}",
+                    data=self._data,
+                )
+
+        if not self._teams:
+            self._errors["base"] = "cannot_load_teams"
+
+        team_names_sorted = sorted(t["displayName"] for t in self._teams)
+        return self.async_show_form(
+            step_id="multi_team",
+            data_schema=vol.Schema({
+                vol.Required(CONF_TEAM_NAMES): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=team_names_sorted,
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
             }),
             errors=self._errors,
         )

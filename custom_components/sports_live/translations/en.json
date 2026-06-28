@@ -29,6 +29,13 @@
           "team_name": "Team"
         }
       },
+      "multi_team": {
+        "title": "Select Multiple Teams",
+        "description": "Choose the teams to monitor. One entry — one shared scoreboard fetch per cycle.",
+        "data": {
+          "team_names": "Teams"
+        }
+      },
       "manual_team": {
         "title": "Manual Team Entry",
         "description": "Enter the ESPN team ID manually. Find the ID in the team URL on espn.com.",
@@ -41,7 +48,8 @@
     },
     "error": {
       "cannot_load_competitions": "Could not load competitions from ESPN. Check your internet connection.",
-      "cannot_load_teams": "Could not load teams for this competition."
+      "cannot_load_teams": "Could not load teams for this competition.",
+      "no_teams_selected": "Please select at least one team."
     }
   },
   "options": {

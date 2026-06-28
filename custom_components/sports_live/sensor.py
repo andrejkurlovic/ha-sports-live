@@ -19,7 +19,8 @@ from homeassistant.helpers.storage import Store
 from .const import (
     _LOGGER, DOMAIN,
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_TEAM_ID, CONF_TEAM_NAME,
-    MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    CONF_TEAM_IDS, CONF_TEAM_NAMES,
+    MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
     SENSOR_STANDINGS, SENSOR_MATCHES, SENSOR_NEXT_MATCH, SENSOR_SCHEDULE,
     SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
     EVENT_SCORE, EVENT_DISCIPLINE, EVENT_MATCH_FINISHED,
@@ -145,6 +146,44 @@ async def async_setup_entry(
                 team_id=team_id,
             ))
 
+    elif mode == MODE_MULTI_TEAM:
+        team_ids = entry.data.get(CONF_TEAM_IDS, [])
+        team_names_list = entry.data.get(CONF_TEAM_NAMES, [])
+        for team_id_i, team_name_i in zip(team_ids, team_names_list):
+            t_slug = (team_name_i or str(team_id_i)).replace(" ", "_").replace(".", "_").replace("-", "_").lower()
+            uid_prefix = f"{DOMAIN}_{entry.entry_id}"
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_NEXT_MATCH,
+                unique_suffix=f"next_{sport_slug}_{comp_slug}_{t_slug}",
+                sport_profile=profile,
+                team_name=team_name_i,
+                competition_code=competition,
+                team_id=team_id_i,
+                uid_override=f"{uid_prefix}_next_{sport_slug}_{comp_slug}_{t_slug}",
+            ))
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_SCHEDULE,
+                unique_suffix=f"schedule_{sport_slug}_{comp_slug}_{t_slug}",
+                sport_profile=profile,
+                team_name=team_name_i,
+                competition_code=competition,
+                team_id=team_id_i,
+                uid_override=f"{uid_prefix}_schedule_{sport_slug}_{comp_slug}_{t_slug}",
+            ))
+            if profile.has_team_schedule_url() and team_id_i:
+                entities.append(SportsLiveSensor(
+                    coordinator, entry,
+                    sensor_type=SENSOR_SCHEDULE_ALL,
+                    unique_suffix=f"schedule_all_{sport_slug}_{t_slug}",
+                    sport_profile=profile,
+                    team_name=team_name_i,
+                    competition_code=competition,
+                    team_id=team_id_i,
+                    uid_override=f"{uid_prefix}_schedule_all_{sport_slug}_{t_slug}",
+                ))
+
     async_add_entities(entities, True)
 
 
@@ -159,7 +198,8 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                  sensor_type: str, unique_suffix: str, sport_profile,
                  team_name: str | None, competition_code: str,
                  team_id: str | int | None = None,
-                 recent_match_hours: int = 24):
+                 recent_match_hours: int = 24,
+                 uid_override: str | None = None):
         super().__init__(coordinator)
         self._entry = entry
         self._sensor_type = sensor_type
@@ -194,9 +234,13 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         }
 
         label = _SENSOR_LABELS.get(sensor_type, sensor_type.replace("_", " ").title())
-        self._attr_name = f"{entry.title} — {label}"
+        # Multi-team entries put team_name in the friendly name so sensors are distinguishable
+        if uid_override and team_name:
+            self._attr_name = f"{entry.title} — {team_name} — {label}"
+        else:
+            self._attr_name = f"{entry.title} — {label}"
         self._attr_icon = _SENSOR_ICONS.get(sensor_type)
-        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_{sensor_type}"
+        self._attr_unique_id = uid_override or f"{DOMAIN}_{entry.entry_id}_{sensor_type}"
         self._attr_extra_state_attributes: dict = {}
         self._attr_native_value: str | None = None
 
@@ -311,7 +355,10 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             )
 
         elif stype == SENSOR_SCHEDULE_ALL:
-            raw = data.get(SENSOR_SCHEDULE_ALL) or {}
+            # Multi-team mode stores data per-team: "schedule_all_{team_id}"
+            per_team_key = f"schedule_all_{self._team_id}"
+            key = per_team_key if per_team_key in data else SENSOR_SCHEDULE_ALL
+            raw = data.get(key) or {}
             self._attr_extra_state_attributes = self._build_scoreboard_attrs(
                 raw, team_name=self._team_name, season_filtered=False,
                 include_league_info=False, include_team_info=True, include_competition_code=False,

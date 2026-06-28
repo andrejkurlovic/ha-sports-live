@@ -11,10 +11,13 @@ CONF_COMPETITION_CODE = "competition_code"
 CONF_COMPETITION_NAME = "competition_name"
 CONF_TEAM_ID = "team_id"
 CONF_TEAM_NAME = "team_name"
+CONF_TEAM_IDS = "team_ids"    # list — used by MODE_MULTI_TEAM
+CONF_TEAM_NAMES = "team_names"  # list — used by MODE_MULTI_TEAM
 
 # Modes
 MODE_COMPETITION = "competition"
 MODE_TEAM = "team"
+MODE_MULTI_TEAM = "multi_team"
 MODE_ALL_TODAY = "all_today"
 MODE_NEWS = "news"
 MODE_MANUAL_TEAM = "manual_team"
