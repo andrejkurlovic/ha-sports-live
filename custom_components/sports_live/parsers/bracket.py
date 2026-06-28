@@ -59,7 +59,8 @@ def process_bracket(data: dict) -> dict:
                 "3rd Place" in note_text or
                 "Super Bowl" in note_text or          # NFL championship game
                 "World Series" in note_text or        # MLB championship series
-                "Division Series" in note_text        # MLB ALDS / NLDS
+                "Division Series" in note_text or     # MLB ALDS / NLDS
+                "penalt" in note_text.lower()         # match decided by penalty shootout; note becomes result description
             )
             if not (is_first_leg or is_second_leg or is_single):
                 continue
