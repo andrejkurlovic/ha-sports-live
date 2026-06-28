@@ -46,24 +46,46 @@ def process_bracket(data: dict) -> dict:
 
             is_first_leg = "1st Leg" in note_text
             is_second_leg = "2nd Leg" in note_text
-            # Single-game eliminations: NFL playoffs, and single-leg soccer knockouts
-            # (FIFA World Cup, Copa America, African Cup, etc.). Two-legged ties always
-            # carry "1st Leg"/"2nd Leg" in their notes, so those are caught above first
-            # and will never reach the is_single check.
+
+            # Season slug from the event (e.g. "round-of-32", "quarterfinals", "final").
+            # ESPN uses this instead of competition notes for some tournaments (FIFA WC 2026+).
+            season_slug = e.get("season", {}).get("slug", "").lower()
+
+            # Single-game eliminations: NFL playoffs, single-leg soccer knockouts
+            # (FIFA World Cup, Copa America, African Cup, etc.). Two-legged ties carry
+            # "1st Leg"/"2nd Leg" in notes; those are caught above and won't reach here.
             is_single = (not is_first_leg and not is_second_leg) and (
+                # Note-based detection (UEFA, NFL, MLB, NBA…)
                 "Final" in note_text or "Playoff" in note_text or
                 "Wild Card" in note_text or "Divisional" in note_text or
                 "Conference" in note_text or "Championship" in note_text or
                 "Round of" in note_text or "Quarterfinal" in note_text or
                 "Semifinal" in note_text or "Third Place" in note_text or
                 "3rd Place" in note_text or
-                "Super Bowl" in note_text or          # NFL championship game
-                "World Series" in note_text or        # MLB championship series
-                "Division Series" in note_text or     # MLB ALDS / NLDS
-                "penalt" in note_text.lower()         # match decided by penalty shootout; note becomes result description
+                "Super Bowl" in note_text or
+                "World Series" in note_text or
+                "Division Series" in note_text or
+                "penalt" in note_text.lower() or  # penalty shootout result note
+                # Season-slug detection (FIFA WC 2026+, some CONCACAF events)
+                any(kw in season_slug for kw in (
+                    "round-of", "quarterfinal", "semifinal", "final", "playoff", "knockout",
+                ))
             )
             if not (is_first_leg or is_second_leg or is_single):
                 continue
+
+            # When the note is empty but season_slug indicates the round, synthesize a label.
+            # This handles FIFA WC 2026+ which puts round info in event.season.slug, not notes.
+            if is_single and not note_text and season_slug:
+                _SLUG_MAP = {
+                    "round-of-64": "Round of 64", "round-of-32": "Round of 32",
+                    "round-of-16": "Round of 16", "quarterfinal": "Quarterfinal",
+                    "semifinal": "Semifinal", "final": "Final",
+                }
+                for _k, _v in _SLUG_MAP.items():
+                    if _k in season_slug:
+                        note_text = _v
+                        break
 
             competitors = c.get("competitors", []) or []
             home = next((x for x in competitors if x.get("homeAway") == "home"), None)
@@ -162,7 +184,12 @@ def process_bracket(data: dict) -> dict:
                     elif as_ > hs:
                         tie["winner_team"] = away_t.get("displayName", "")
                     else:
-                        tie["tied"] = True
+                        # Draw after 90/120 mins — try to extract penalty winner from note
+                        pen_winner = _parse_penalty_winner(note_text)
+                        if pen_winner:
+                            tie["winner_team"] = pen_winner
+                        else:
+                            tie["tied"] = True
 
         sorted_ties = sorted(
             ties.values(),
@@ -223,6 +250,17 @@ def process_bracket(data: dict) -> dict:
     except Exception:
         _LOGGER.exception("Error in process_bracket")
     return out
+
+
+def _parse_penalty_winner(note_text: str) -> str | None:
+    """Extract the winning team name from a penalty shootout note.
+
+    Matches ESPN patterns like 'Paris Saint-Germain win 4-3 on penalties'.
+    """
+    m = re.search(r'^(.+?)\s+win(?:s)?\s+\d+[-–]\d+\s+on\s+penalt', note_text, re.IGNORECASE)
+    if m:
+        return m.group(1).strip()
+    return None
 
 
 def _parse_aggregate(note_text: str) -> dict | None:
