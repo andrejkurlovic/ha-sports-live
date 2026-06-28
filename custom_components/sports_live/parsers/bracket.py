@@ -111,13 +111,23 @@ def process_bracket(data: dict) -> dict:
                 }
             tie = ties[tie_key]
 
+            status_obj = (e.get("status") or {})
+            status_type = (status_obj.get("type") or {})
+            venue_obj = c.get("venue") or {}
+            venue_city = (venue_obj.get("address") or {}).get("city", "")
+            venue_name = venue_obj.get("fullName", "")
+            venue_str = f"{venue_name}, {venue_city}".strip(", ") if venue_name else venue_city
+
             leg = {
                 "home_team": home_t.get("displayName", ""),
                 "home_score": _safe_int(home.get("score")),
                 "away_team": away_t.get("displayName", ""),
                 "away_score": _safe_int(away.get("score")),
                 "date": e.get("date", ""),
-                "state": ((e.get("status") or {}).get("type") or {}).get("state", ""),
+                "state": status_type.get("state", ""),
+                "status_detail": status_type.get("detail", ""),
+                "clock": status_obj.get("displayClock", ""),
+                "venue": venue_str,
                 "note": note_for_display,
             }
 
