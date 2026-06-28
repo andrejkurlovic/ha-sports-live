@@ -46,11 +46,17 @@ def process_bracket(data: dict) -> dict:
 
             is_first_leg = "1st Leg" in note_text
             is_second_leg = "2nd Leg" in note_text
-            # Single-game finals / playoff games
+            # Single-game eliminations: NFL playoffs, and single-leg soccer knockouts
+            # (FIFA World Cup, Copa America, African Cup, etc.). Two-legged ties always
+            # carry "1st Leg"/"2nd Leg" in their notes, so those are caught above first
+            # and will never reach the is_single check.
             is_single = (not is_first_leg and not is_second_leg) and (
                 "Final" in note_text or "Playoff" in note_text or
                 "Wild Card" in note_text or "Divisional" in note_text or
-                "Conference" in note_text or "Championship" in note_text
+                "Conference" in note_text or "Championship" in note_text or
+                "Round of" in note_text or "Quarterfinal" in note_text or
+                "Semifinal" in note_text or "Third Place" in note_text or
+                "3rd Place" in note_text
             )
             if not (is_first_leg or is_second_leg or is_single):
                 continue
