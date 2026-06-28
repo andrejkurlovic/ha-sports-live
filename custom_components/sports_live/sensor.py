@@ -277,7 +277,11 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             }
 
         elif stype == SENSOR_BRACKET:
-            raw = data.get(SENSOR_BRACKET) or {}
+            # Bracket reuses the competition scoreboard (SENSOR_MATCHES) — same data,
+            # no separate fetch needed. Using the full season-dated scoreboard also
+            # fixes NFL (Jan playoffs) and MLB (Oct-Nov playoffs) which the old
+            # hardcoded Feb-July bracket URL always missed.
+            raw = data.get(SENSOR_MATCHES) or {}
             bracket = process_bracket(raw)
             rounds = bracket.get("rounds", [])
             if rounds:

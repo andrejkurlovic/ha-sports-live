@@ -6,7 +6,7 @@ coordinator instance so ESPN is hit once per update cycle, not once per sensor.
 from __future__ import annotations
 import asyncio
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -17,7 +17,7 @@ from .const import (
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_TEAM_ID,
     MODE_COMPETITION, MODE_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
     SENSOR_STANDINGS, SENSOR_MATCHES, SENSOR_NEXT_MATCH, SENSOR_SCHEDULE,
-    SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
+    SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_ALL_TODAY,
 )
 from .sports import get_profile
 
@@ -81,11 +81,6 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                         and self._profile._news_url_tmpl):
                     news_url = self._profile.news_url(self._competition)
                     result[SENSOR_NEWS] = await self._fetch(news_url)
-
-                if (self._profile.capabilities.supports_bracket
-                        and self._competition in self._profile.knockout_competitions):
-                    bracket_url = self._build_bracket_url()
-                    result[SENSOR_BRACKET] = await self._fetch(bracket_url)
 
             elif mode in (MODE_TEAM, MODE_MANUAL_TEAM):
                 await self._resolve_season_dates()
@@ -170,15 +165,6 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
         s = (self._season_start or datetime.now() - timedelta(days=240)).strftime("%Y%m%d")
         e = (self._season_end or datetime.now() + timedelta(days=240)).strftime("%Y%m%d")
         return s, e
-
-    def _build_bracket_url(self) -> str:
-        now = datetime.now()
-        ko_year = now.year + 1 if now.month >= 8 else now.year
-        return (
-            f"https://site.web.api.espn.com/apis/site/v2/sports/"
-            f"{self._profile.espn_sport}/{self._competition}/"
-            f"scoreboard?limit=300&dates={ko_year}0201-{ko_year}0731"
-        )
 
     async def fetch_summary(self, event_id: str) -> dict:
         """One-off summary fetch for a specific event (used by next_match enrichment)."""

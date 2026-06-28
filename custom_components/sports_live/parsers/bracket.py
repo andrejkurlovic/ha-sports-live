@@ -56,7 +56,10 @@ def process_bracket(data: dict) -> dict:
                 "Conference" in note_text or "Championship" in note_text or
                 "Round of" in note_text or "Quarterfinal" in note_text or
                 "Semifinal" in note_text or "Third Place" in note_text or
-                "3rd Place" in note_text
+                "3rd Place" in note_text or
+                "Super Bowl" in note_text or          # NFL championship game
+                "World Series" in note_text or        # MLB championship series
+                "Division Series" in note_text        # MLB ALDS / NLDS
             )
             if not (is_first_leg or is_second_leg or is_single):
                 continue
