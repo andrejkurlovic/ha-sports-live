@@ -15,10 +15,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     _LOGGER, DOMAIN,
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_TEAM_ID,
-    CONF_TEAM_IDS, CONF_TEAM_NAMES,
-    MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    CONF_TEAM_IDS, CONF_TEAM_NAMES, CONF_ENABLED_SENSORS,
+    MODE_HUB, MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
     SENSOR_STANDINGS, SENSOR_MATCHES, SENSOR_NEXT_MATCH, SENSOR_SCHEDULE,
-    SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_ALL_TODAY,
+    SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
 )
 from .sports import get_profile
 
@@ -45,8 +45,13 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
         self._sport_id = entry.data.get(CONF_SPORT)
         self._competition = entry.data.get(CONF_COMPETITION_CODE)
         self._team_id = entry.data.get(CONF_TEAM_ID)
-        self._team_ids: list = entry.data.get(CONF_TEAM_IDS, [])
-        self._team_names: list = entry.data.get(CONF_TEAM_NAMES, [])
+        # Options-override: allow editing teams/sensors after setup via options flow
+        opts = entry.options
+        self._team_ids: list = opts.get(CONF_TEAM_IDS, entry.data.get(CONF_TEAM_IDS, []))
+        self._team_names: list = opts.get(CONF_TEAM_NAMES, entry.data.get(CONF_TEAM_NAMES, []))
+        self._enabled_sensors: list = opts.get(
+            CONF_ENABLED_SENSORS, entry.data.get(CONF_ENABLED_SENSORS, [SENSOR_MATCHES])
+        )
         self._profile = get_profile(self._sport_id)
 
         # Dynamically resolved season dates (per-coordinator; refreshed at most daily)
@@ -64,7 +69,34 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
         result: dict = {}
 
         try:
-            if mode == MODE_NEWS:
+            if mode == MODE_HUB:
+                await self._resolve_season_dates()
+                start, end = self._date_range_strs()
+                enabled = set(self._enabled_sensors)
+
+                scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
+                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+
+                if SENSOR_STANDINGS in enabled and self._profile.capabilities.supports_standings:
+                    result[SENSOR_STANDINGS] = await self._fetch(
+                        self._profile.standings_url(self._competition)
+                    )
+
+                if SENSOR_NEWS in enabled and self._profile._news_url_tmpl:
+                    result[SENSOR_NEWS] = await self._fetch(
+                        self._profile.news_url(self._competition)
+                    )
+
+                # Per-team schedule fetch (one request per team; no batch API)
+                for team_id in self._team_ids:
+                    if team_id and self._profile._team_schedule_url_tmpl:
+                        result[f"schedule_all_{team_id}"] = await self._fetch(
+                            self._profile.team_schedule_url(
+                                str(team_id), competition=self._competition or ""
+                            )
+                        )
+
+            elif mode == MODE_NEWS:
                 url = self._profile.news_url(self._competition)
                 result[SENSOR_NEWS] = await self._fetch(url)
 

@@ -22,6 +22,14 @@
           "competition_code": "Competition"
         }
       },
+      "hub": {
+        "title": "Configure Competition Hub",
+        "description": "One entry for {competition} ({sport}). Choose which sensors to create and optionally track specific teams.",
+        "data": {
+          "enabled_sensors": "Sensors to create",
+          "team_names": "Teams to track (optional — adds next match + schedule per team)"
+        }
+      },
       "team": {
         "title": "Select Team",
         "description": "Choose the team to follow within this competition.",
@@ -56,10 +64,12 @@
     "step": {
       "init": {
         "title": "Sports Live Options",
-        "description": "Tune polling frequency and match visibility window.",
+        "description": "Tune polling frequency, match visibility window, enabled sensors, and tracked teams.",
         "data": {
           "scan_interval": "Scan interval (minutes)",
-          "recent_match_hours": "Keep finished match visible for (hours)"
+          "recent_match_hours": "Keep finished match visible for (hours)",
+          "enabled_sensors": "Active sensors",
+          "team_names": "Tracked teams (add/remove to update per-team sensors)"
         }
       }
     }

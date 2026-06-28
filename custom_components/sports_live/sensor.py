@@ -19,8 +19,8 @@ from homeassistant.helpers.storage import Store
 from .const import (
     _LOGGER, DOMAIN,
     CONF_MODE, CONF_SPORT, CONF_COMPETITION_CODE, CONF_TEAM_ID, CONF_TEAM_NAME,
-    CONF_TEAM_IDS, CONF_TEAM_NAMES,
-    MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
+    CONF_TEAM_IDS, CONF_TEAM_NAMES, CONF_ENABLED_SENSORS,
+    MODE_HUB, MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_ALL_TODAY, MODE_NEWS, MODE_MANUAL_TEAM,
     SENSOR_STANDINGS, SENSOR_MATCHES, SENSOR_NEXT_MATCH, SENSOR_SCHEDULE,
     SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
     EVENT_SCORE, EVENT_DISCIPLINE, EVENT_MATCH_FINISHED,
@@ -55,7 +55,95 @@ async def async_setup_entry(
 
     entities: list[SportsLiveSensor] = []
 
-    if mode == MODE_NEWS:
+    # Options-override: for hub mode, team_ids/enabled_sensors may have been updated via options flow
+    opts = entry.options
+    enabled_sensors: list = opts.get(
+        CONF_ENABLED_SENSORS, entry.data.get(CONF_ENABLED_SENSORS, [SENSOR_MATCHES])
+    )
+    hub_team_ids: list = opts.get(CONF_TEAM_IDS, entry.data.get(CONF_TEAM_IDS, []))
+    hub_team_names: list = opts.get(CONF_TEAM_NAMES, entry.data.get(CONF_TEAM_NAMES, []))
+
+    if mode == MODE_HUB:
+        enabled_set = set(enabled_sensors)
+
+        # Competition-level sensors
+        entities.append(SportsLiveSensor(
+            coordinator, entry,
+            sensor_type=SENSOR_MATCHES,
+            unique_suffix=f"matches_{sport_slug}_{comp_slug}",
+            sport_profile=profile,
+            team_name=None,
+            competition_code=competition,
+        ))
+
+        if SENSOR_STANDINGS in enabled_set and profile.capabilities.supports_standings:
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_STANDINGS,
+                unique_suffix=f"standings_{sport_slug}_{comp_slug}",
+                sport_profile=profile,
+                team_name=None,
+                competition_code=competition,
+            ))
+
+        if (SENSOR_BRACKET in enabled_set and profile.capabilities.supports_bracket
+                and competition in profile.knockout_competitions):
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_BRACKET,
+                unique_suffix=f"bracket_{sport_slug}_{comp_slug}",
+                sport_profile=profile,
+                team_name=None,
+                competition_code=competition,
+            ))
+
+        if SENSOR_NEWS in enabled_set and profile.has_news_url():
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_NEWS,
+                unique_suffix=f"news_{sport_slug}_{comp_slug}",
+                sport_profile=profile,
+                team_name=None,
+                competition_code=competition,
+            ))
+
+        # Per-team sensors
+        uid_prefix = f"{DOMAIN}_{entry.entry_id}"
+        for team_id_i, team_name_i in zip(hub_team_ids, hub_team_names):
+            t_slug = (team_name_i or str(team_id_i)).replace(" ", "_").replace(".", "_").replace("-", "_").lower()
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_NEXT_MATCH,
+                unique_suffix=f"next_{sport_slug}_{comp_slug}_{t_slug}",
+                sport_profile=profile,
+                team_name=team_name_i,
+                competition_code=competition,
+                team_id=team_id_i,
+                uid_override=f"{uid_prefix}_next_{sport_slug}_{comp_slug}_{t_slug}",
+            ))
+            entities.append(SportsLiveSensor(
+                coordinator, entry,
+                sensor_type=SENSOR_SCHEDULE,
+                unique_suffix=f"schedule_{sport_slug}_{comp_slug}_{t_slug}",
+                sport_profile=profile,
+                team_name=team_name_i,
+                competition_code=competition,
+                team_id=team_id_i,
+                uid_override=f"{uid_prefix}_schedule_{sport_slug}_{comp_slug}_{t_slug}",
+            ))
+            if profile.has_team_schedule_url() and team_id_i:
+                entities.append(SportsLiveSensor(
+                    coordinator, entry,
+                    sensor_type=SENSOR_SCHEDULE_ALL,
+                    unique_suffix=f"schedule_all_{sport_slug}_{t_slug}",
+                    sport_profile=profile,
+                    team_name=team_name_i,
+                    competition_code=competition,
+                    team_id=team_id_i,
+                    uid_override=f"{uid_prefix}_schedule_all_{sport_slug}_{t_slug}",
+                ))
+
+    elif mode == MODE_NEWS:
         entities.append(SportsLiveSensor(
             coordinator, entry,
             sensor_type=SENSOR_NEWS,
