@@ -69,6 +69,7 @@ def process_bracket(data: dict) -> dict:
                 # Season-slug detection (FIFA WC 2026+, some CONCACAF events)
                 any(kw in season_slug for kw in (
                     "round-of", "quarterfinal", "semifinal", "final", "playoff", "knockout",
+                    "3rd-place",
                 ))
             )
             if not (is_first_leg or is_second_leg or is_single):
@@ -80,7 +81,7 @@ def process_bracket(data: dict) -> dict:
                 _SLUG_MAP = {
                     "round-of-64": "Round of 64", "round-of-32": "Round of 32",
                     "round-of-16": "Round of 16", "quarterfinal": "Quarterfinal",
-                    "semifinal": "Semifinal", "final": "Final",
+                    "semifinal": "Semifinal", "3rd-place": "Third Place", "final": "Final",
                 }
                 for _k, _v in _SLUG_MAP.items():
                     if _k in season_slug:
@@ -196,45 +197,81 @@ def process_bracket(data: dict) -> dict:
             key=lambda t: t.get("first_leg_date") or "",
         )
 
+        # Group single-leg ties by their synthesized note (round name) so rounds like
+        # R32→R16→QF stay separate even when scheduled within 7 days of each other.
+        # Two-legged ties (no "single" leg) fall back to the 7-day date-proximity rule
+        # so leg1 and leg2 of the same round are kept together.
         groups: list[list] = []
-        current: list = []
+        single_groups: dict[str, list] = {}   # note_text → [ties]
+        twolegged_current: list = []
         prev_date: datetime | None = None
 
         for tie in sorted_ties:
-            d = _parse_date(tie.get("first_leg_date") or "")
-            if prev_date is None or d is None or abs((d - prev_date).days) <= 7:
-                current.append(tie)
+            if tie.get("single") is not None:
+                note = tie["single"].get("note") or "Unknown Round"
+                single_groups.setdefault(note, []).append(tie)
             else:
-                groups.append(current)
-                current = [tie]
-            if d is not None:
-                prev_date = d
-        if current:
-            groups.append(current)
+                # Two-legged tie — group by date proximity
+                d = _parse_date(tie.get("first_leg_date") or "")
+                if prev_date is None or d is None or abs((d - prev_date).days) <= 7:
+                    twolegged_current.append(tie)
+                else:
+                    if twolegged_current:
+                        groups.append(twolegged_current)
+                    twolegged_current = [tie]
+                if d is not None:
+                    prev_date = d
+
+        if twolegged_current:
+            groups.append(twolegged_current)
+
+        # Interleave single-leg rounds (ordered by earliest match date) with two-legged groups.
+        # Build a unified list ordered by earliest date in each group.
+        all_groups: list[tuple[str, list]] = []
+        for g in groups:
+            earliest = min((t.get("first_leg_date") or "" for t in g), default="")
+            all_groups.append((earliest, g))
+        for note_key, note_ties in single_groups.items():
+            earliest = min((t.get("first_leg_date") or "" for t in note_ties), default="")
+            all_groups.append((earliest, note_ties))
+
+        all_groups.sort(key=lambda x: x[0])
+        groups = [g for _, g in all_groups]
 
         sized_rounds = []
         for g in groups:
             size = 1
             while size < len(g):
                 size *= 2
-            sized_rounds.append({"size": size, "ties": g})
+            # Prefer the synthesized note as the explicit round label (single-leg groups).
+            # For two-legged groups the note comes from the competition note text.
+            explicit_label = None
+            first_single = g[0].get("single") if g else None
+            if first_single:
+                explicit_label = first_single.get("note") or None
+            sized_rounds.append({"size": size, "ties": g, "explicit_label": explicit_label})
 
         n = len(sized_rounds)
         labels = [None] * n
         if n > 0:
             expected = sized_rounds[-1]["size"]
             for idx in range(n - 1, -1, -1):
-                actual = sized_rounds[idx]["size"]
-                if actual == expected:
-                    labels[idx] = ROUND_NAMES.get(actual, f"Round of {actual * 2}")
-                    expected = actual * 2
-                elif idx + 1 < n and actual == sized_rounds[idx + 1]["size"]:
-                    labels[idx] = "Knockout Playoffs" if actual == 8 else (
-                        ROUND_NAMES.get(actual, f"Round of {actual * 2}"))
-                    expected = actual * 2
+                sr = sized_rounds[idx]
+                if sr.get("explicit_label"):
+                    # Use the label embedded from season_slug / competition note
+                    labels[idx] = sr["explicit_label"]
                 else:
-                    labels[idx] = ROUND_NAMES.get(actual, f"Round of {actual * 2}")
-                    expected = actual * 2
+                    actual = sr["size"]
+                    if actual == expected:
+                        labels[idx] = ROUND_NAMES.get(actual, f"Round of {actual * 2}")
+                        expected = actual * 2
+                    elif idx + 1 < n and actual == sized_rounds[idx + 1]["size"]:
+                        labels[idx] = "Knockout Playoffs" if actual == 8 else (
+                            ROUND_NAMES.get(actual, f"Round of {actual * 2}"))
+                        expected = actual * 2
+                    else:
+                        labels[idx] = ROUND_NAMES.get(actual, f"Round of {actual * 2}")
+                        expected = actual * 2
 
         for idx, sr in enumerate(sized_rounds):
             for tie in sr["ties"]:
