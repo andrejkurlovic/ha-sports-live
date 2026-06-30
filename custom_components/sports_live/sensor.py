@@ -416,18 +416,6 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             raw = data.get(SENSOR_MATCHES) or {}
             bracket = process_bracket(raw)
             rounds = bracket.get("rounds", [])
-            # Stamp espn_summary_url on penalty ties for card-side kick fetching.
-            if self._sport_profile.capabilities.supports_summary:
-                espn_comp = getattr(self.coordinator, "_competition", None) or ""
-                for r in rounds:
-                    for tie in r.get("ties", []):
-                        if tie.get("decided_on_penalties"):
-                            leg = tie.get("single") or tie.get("leg1") or tie.get("leg2") or {}
-                            eid = leg.get("event_id", "")
-                            if eid:
-                                tie["espn_summary_url"] = self._sport_profile.summary_url(
-                                    espn_comp, str(eid)
-                                )
             if rounds:
                 last = rounds[-1]
                 self._attr_native_value = f"{last.get('name')} ({last.get('size')} teams)"
@@ -461,7 +449,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             raw = data.get(key) or {}
             self._attr_extra_state_attributes = self._build_scoreboard_attrs(
                 raw, team_name=self._team_name, season_filtered=False,
-                include_league_info=False, include_team_info=True, include_competition_code=False,
+                include_league_info=False, include_team_info=True, include_competition_code=True,
             )
 
         elif stype == SENSOR_NEXT_MATCH:
@@ -527,14 +515,6 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         )
         matches = parsed.get("matches", [])
         enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
-        # Stamp ESPN summary URL on penalty matches so the card can fetch kick data.
-        if self._sport_profile.capabilities.supports_summary:
-            espn_comp = getattr(self.coordinator, "_competition", None) or ""
-            for m in matches:
-                if m.get("decided_on_penalties") and m.get("event_id"):
-                    m["espn_summary_url"] = self._sport_profile.summary_url(
-                        espn_comp, str(m["event_id"])
-                    )
         self._attr_native_value = self._describe_matches(matches)
         computed = self._compute_all_matches_attrs(matches)
 
@@ -838,10 +818,9 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         "state", "status", "status_detail", "clock", "period",
         "venue", "venue_city", "venue_country", "attendance",
         "broadcast", "broadcast_uk", "match_details",
-        # Penalty shootout fields (v2.0.7)
+        # Penalty shootout fields
         "decided_on_penalties", "in_penalty_shootout",
         "penalty_home_score", "penalty_away_score", "shootout_details",
-        "espn_summary_url",
         # Live situation & enrichment (v1.6.0)
         "event_url",
         "home_win_probability", "away_win_probability",
