@@ -818,6 +818,9 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         "state", "status", "status_detail", "clock", "period",
         "venue", "venue_city", "venue_country", "attendance",
         "broadcast", "broadcast_uk", "match_details",
+        # Penalty shootout fields (v2.0.7)
+        "decided_on_penalties", "in_penalty_shootout",
+        "penalty_home_score", "penalty_away_score", "shootout_details",
         # Live situation & enrichment (v1.6.0)
         "event_url",
         "home_win_probability", "away_win_probability",

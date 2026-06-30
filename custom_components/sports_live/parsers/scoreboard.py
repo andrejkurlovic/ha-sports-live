@@ -304,7 +304,6 @@ def _parse_event(raw: dict, hass) -> dict | None:
             "penalty_home_score": penalty_home_score,
             "penalty_away_score": penalty_away_score,
             "shootout_details": shootout_details,
-            "parser_version": "2.0.8",
         }
     except Exception:
         _LOGGER.exception("Error parsing event %s", raw.get("id"))
