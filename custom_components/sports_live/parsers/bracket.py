@@ -108,6 +108,9 @@ def process_bracket(data: dict) -> dict:
                     "first_leg_date": None,
                     "winner_team": None, "aggregate": None,
                     "tied": False, "completed": False,
+                    "decided_on_penalties": False,
+                    "penalty_score": None,
+                    "penalty_details": [],
                 }
             tie = ties[tie_key]
 
@@ -118,6 +121,7 @@ def process_bracket(data: dict) -> dict:
             venue_name = venue_obj.get("fullName", "")
             venue_str = f"{venue_name}, {venue_city}".strip(", ") if venue_name else venue_city
 
+            detail_str = status_type.get("detail", "") or ""
             leg = {
                 "home_team": home_t.get("displayName", ""),
                 "home_score": _safe_int(home.get("score")),
@@ -125,10 +129,13 @@ def process_bracket(data: dict) -> dict:
                 "away_score": _safe_int(away.get("score")),
                 "date": e.get("date", ""),
                 "state": status_type.get("state", ""),
-                "status_detail": status_type.get("detail", ""),
+                "status_detail": detail_str,
                 "clock": status_obj.get("displayClock", ""),
                 "venue": venue_str,
                 "note": note_for_display,
+                "in_penalty_shootout": (
+                    "penalt" in detail_str.lower() or "shootout" in detail_str.lower()
+                ),
             }
 
             if is_first_leg:
@@ -197,9 +204,14 @@ def process_bracket(data: dict) -> dict:
                         tie["winner_team"] = away_t.get("displayName", "")
                     else:
                         # Draw after 90/120 mins — try to extract penalty winner from note
-                        pen_winner = _parse_penalty_winner(note_text)
-                        if pen_winner:
-                            tie["winner_team"] = pen_winner
+                        pen_info = _parse_penalty_info(note_text)
+                        if pen_info:
+                            tie["winner_team"] = pen_info["winner"]
+                            tie["decided_on_penalties"] = True
+                            tie["penalty_score"] = pen_info.get("score")
+                            pen_details = _parse_penalty_details_from_comp(c)
+                            if pen_details:
+                                tie["penalty_details"] = pen_details
                         else:
                             tie["tied"] = True
 
@@ -300,15 +312,52 @@ def process_bracket(data: dict) -> dict:
     return out
 
 
-def _parse_penalty_winner(note_text: str) -> str | None:
-    """Extract the winning team name from a penalty shootout note.
+def _parse_penalty_info(note_text: str) -> dict | None:
+    """Extract winner and shootout score from a penalty note.
 
     Matches ESPN patterns like 'Paris Saint-Germain win 4-3 on penalties'.
+    Returns {"winner": str, "score": "4-3"} or None.
     """
-    m = re.search(r'^(.+?)\s+win(?:s)?\s+\d+[-–]\d+\s+on\s+penalt', note_text, re.IGNORECASE)
+    m = re.search(r'^(.+?)\s+win(?:s)?\s+(\d+)[-–](\d+)\s+on\s+penalt', note_text, re.IGNORECASE)
     if m:
-        return m.group(1).strip()
+        return {"winner": m.group(1).strip(), "score": f"{m.group(2)}-{m.group(3)}"}
+    # Fallback: winner without score (rare ESPN format)
+    m2 = re.search(r'^(.+?)\s+win(?:s)?\s+on\s+penalt', note_text, re.IGNORECASE)
+    if m2:
+        return {"winner": m2.group(1).strip(), "score": None}
     return None
+
+
+def _parse_penalty_details_from_comp(comp: dict) -> list[dict]:
+    """Extract penalty shootout kicks from competition details.
+
+    ESPN marks shootout events with period >= 5 (soccer) or a clock
+    value matching the 'P<n>' format used for shootout rounds.
+    """
+    events = []
+    for d in (comp.get("details") or []):
+        evt_type = ((d.get("type") or {}).get("text") or "").lower()
+        if "penalty" not in evt_type:
+            continue
+        period = d.get("period")
+        period_num = 0
+        if isinstance(period, dict):
+            period_num = int(period.get("number", 0) or 0)
+        elif isinstance(period, (int, float)):
+            period_num = int(period)
+        clock_val = ((d.get("clock") or {}).get("displayValue") or "")
+        is_shootout = period_num >= 5 or bool(re.match(r'^P\d', clock_val, re.IGNORECASE))
+        if not is_shootout:
+            continue
+        athletes = [a.get("displayName", "") for a in (d.get("athletesInvolved") or [])]
+        team = ((d.get("team") or {}).get("displayName") or "")
+        scored = "missed" not in evt_type
+        events.append({
+            "team": team,
+            "player": athletes[0] if athletes else "",
+            "scored": scored,
+        })
+    return events
 
 
 def _parse_aggregate(note_text: str) -> dict | None:

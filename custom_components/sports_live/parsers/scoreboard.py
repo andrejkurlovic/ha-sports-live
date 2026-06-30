@@ -6,6 +6,7 @@ Sport-specific enrichment is handled in sensor.py via the sport profile.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -210,6 +211,39 @@ def _parse_event(raw: dict, hass) -> dict | None:
         # Cup group slots), so guard against a None first element.
         odds = (odds_list[0] if odds_list else None) or {}
 
+        # Penalty shootout detection
+        notes = comp.get("notes") or []
+        note_text_pen = ""
+        if notes:
+            note_text_pen = notes[0].get("headline", "") or notes[0].get("text", "") or ""
+
+        decided_on_penalties = False
+        in_penalty_shootout = False
+        penalty_home_score = None
+        penalty_away_score = None
+
+        cur_state = status_type.get("state", "")
+        detail_text = status_type.get("detail", "") or ""
+
+        if cur_state == "post" and re.search(r'on\s+penalt', note_text_pen, re.IGNORECASE):
+            decided_on_penalties = True
+            m_pen = re.search(
+                r'^(.+?)\s+win(?:s)?\s+(\d+)[-–](\d+)\s+on\s+penalt',
+                note_text_pen, re.IGNORECASE,
+            )
+            if m_pen:
+                winner_name = m_pen.group(1).strip()
+                w_score, l_score = int(m_pen.group(2)), int(m_pen.group(3))
+                home_name = home_team_data.get("displayName", "")
+                if winner_name.lower() == home_name.lower():
+                    penalty_home_score, penalty_away_score = w_score, l_score
+                else:
+                    penalty_home_score, penalty_away_score = l_score, w_score
+        elif cur_state == "in" and re.search(r'penalt|shootout', detail_text, re.IGNORECASE):
+            in_penalty_shootout = True
+
+        shootout_details = _get_shootout_details(details_raw)
+
         return {
             "event_id": raw.get("id"),
             "date": _fmt_date(hass, raw.get("date")),
@@ -264,6 +298,12 @@ def _parse_event(raw: dict, hass) -> dict | None:
             # odds
             "odds_details": odds.get("details", ""),
             "over_under": odds.get("overUnder"),
+            # penalty shootout
+            "decided_on_penalties": decided_on_penalties,
+            "in_penalty_shootout": in_penalty_shootout,
+            "penalty_home_score": penalty_home_score,
+            "penalty_away_score": penalty_away_score,
+            "shootout_details": shootout_details,
         }
     except Exception:
         _LOGGER.exception("Error parsing event %s", raw.get("id"))
@@ -377,6 +417,39 @@ def _get_details(details: list) -> list[str]:
         clock = d.get("clock", {}).get("displayValue", "N/A")
         athletes = [a.get("displayName", "") for a in d.get("athletesInvolved", [])]
         events.append(f"{evt} - {clock}: {', '.join(athletes) or 'N/A'}")
+    return events
+
+
+def _get_shootout_details(details: list) -> list[dict]:
+    """Extract penalty shootout kicks from match details.
+
+    ESPN marks shootout events with period >= 5 (soccer) or a clock
+    value matching the ESPN 'P<n>' format used for shootout rounds.
+    """
+    events = []
+    for d in (details or []):
+        evt_type = ((d.get("type") or {}).get("text") or "").lower()
+        if "penalty" not in evt_type:
+            continue
+        period = d.get("period")
+        period_num = 0
+        if isinstance(period, dict):
+            period_num = int(period.get("number", 0) or 0)
+        elif isinstance(period, (int, float)):
+            period_num = int(period)
+        clock_val = ((d.get("clock") or {}).get("displayValue") or "")
+        is_shootout = period_num >= 5 or bool(re.match(r'^P\d', clock_val, re.IGNORECASE))
+        if not is_shootout:
+            continue
+        athletes = [a.get("displayName", "") for a in (d.get("athletesInvolved") or [])]
+        team = ((d.get("team") or {}).get("displayName") or "")
+        scored = "missed" not in evt_type
+        events.append({
+            "team": team,
+            "player": athletes[0] if athletes else "",
+            "scored": scored,
+            "clock": clock_val,
+        })
     return events
 
 
