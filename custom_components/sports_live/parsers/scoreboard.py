@@ -228,7 +228,7 @@ def _parse_event(raw: dict, hass) -> dict | None:
         if cur_state == "post" and re.search(r'on\s+penalt', note_text_pen, re.IGNORECASE):
             decided_on_penalties = True
             m_pen = re.search(
-                r'^(.+?)\s+win(?:s)?\s+(\d+)[-–](\d+)\s+on\s+penalt',
+                r'^(.+?)\s+(?:win(?:s)?|advance[sd]?)\s+(\d+)[-–]\s*(\d+)\s+on\s+penalt',
                 note_text_pen, re.IGNORECASE,
             )
             if m_pen:
