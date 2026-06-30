@@ -133,6 +133,7 @@ def process_bracket(data: dict) -> dict:
                 "clock": status_obj.get("displayClock", ""),
                 "venue": venue_str,
                 "note": note_for_display,
+                "event_id": e.get("id", ""),
                 "in_penalty_shootout": (
                     "penalt" in detail_str.lower() or "shootout" in detail_str.lower()
                 ),
