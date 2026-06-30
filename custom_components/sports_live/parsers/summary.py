@@ -27,6 +27,7 @@ def process_summary(data: dict) -> dict:
         "head_to_head": [],
         "scoring_plays": [],
         "stat_leaders": [],
+        "shootout_details": [],
     }
     try:
         for r in data.get("rosters", []) or []:
@@ -141,6 +142,25 @@ def process_summary(data: dict) -> dict:
                     "team_name": team.get("displayName", ""),
                     "categories": cats,
                 })
+        # Penalty shootout — present for soccer (data["shootout"] is a list of
+        # team objects each with a "shots" array).  Flatten into kick order.
+        shootout_raw = data.get("shootout") or []
+        if shootout_raw:
+            all_kicks: list[dict] = []
+            for team_entry in shootout_raw:
+                team_name = team_entry.get("team", "")
+                for shot in team_entry.get("shots", []) or []:
+                    all_kicks.append({
+                        "team": team_name,
+                        "player": shot.get("player", ""),
+                        "scored": bool(shot.get("didScore")),
+                        "shot_number": shot.get("shotNumber", 0),
+                    })
+            # Sort by shot_number so they appear in real-time order.
+            all_kicks.sort(key=lambda k: k["shot_number"])
+            out["shootout_details"] = [{k: v for k, v in kick.items() if k != "shot_number"}
+                                       for kick in all_kicks]
+
     except Exception:
         _LOGGER.exception("Error in process_summary")
     return out
