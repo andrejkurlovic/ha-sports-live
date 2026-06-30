@@ -416,6 +416,18 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             raw = data.get(SENSOR_MATCHES) or {}
             bracket = process_bracket(raw)
             rounds = bracket.get("rounds", [])
+            # Stamp espn_summary_url on penalty ties for card-side kick fetching.
+            if self._sport_profile.capabilities.supports_summary:
+                espn_comp = getattr(self.coordinator, "_competition", None) or ""
+                for r in rounds:
+                    for tie in r.get("ties", []):
+                        if tie.get("decided_on_penalties"):
+                            leg = tie.get("single") or tie.get("leg1") or tie.get("leg2") or {}
+                            eid = leg.get("event_id", "")
+                            if eid:
+                                tie["espn_summary_url"] = self._sport_profile.summary_url(
+                                    espn_comp, str(eid)
+                                )
             if rounds:
                 last = rounds[-1]
                 self._attr_native_value = f"{last.get('name')} ({last.get('size')} teams)"
