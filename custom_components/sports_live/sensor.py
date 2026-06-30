@@ -515,6 +515,14 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         )
         matches = parsed.get("matches", [])
         enrich_matches_with_uk_broadcast(matches, self._competition_code or "")
+        # Stamp ESPN summary URL on penalty matches so the card can fetch kick data.
+        if self._sport_profile.capabilities.supports_summary:
+            espn_comp = getattr(self.coordinator, "_competition", None) or ""
+            for m in matches:
+                if m.get("decided_on_penalties") and m.get("event_id"):
+                    m["espn_summary_url"] = self._sport_profile.summary_url(
+                        espn_comp, str(m["event_id"])
+                    )
         self._attr_native_value = self._describe_matches(matches)
         computed = self._compute_all_matches_attrs(matches)
 
@@ -821,6 +829,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         # Penalty shootout fields (v2.0.7)
         "decided_on_penalties", "in_penalty_shootout",
         "penalty_home_score", "penalty_away_score", "shootout_details",
+        "espn_summary_url",
         # Live situation & enrichment (v1.6.0)
         "event_url",
         "home_win_probability", "away_win_probability",
