@@ -318,11 +318,16 @@ def _parse_penalty_info(note_text: str) -> dict | None:
     Matches ESPN patterns like 'Paris Saint-Germain win 4-3 on penalties'.
     Returns {"winner": str, "score": "4-3"} or None.
     """
-    m = re.search(r'^(.+?)\s+win(?:s)?\s+(\d+)[-–](\d+)\s+on\s+penalt', note_text, re.IGNORECASE)
+    m = re.search(
+        r'^(.+?)\s+(?:win(?:s)?|advance[sd]?)\s+(\d+)[-–]\s*(\d+)\s+on\s+penalt',
+        note_text, re.IGNORECASE,
+    )
     if m:
         return {"winner": m.group(1).strip(), "score": f"{m.group(2)}-{m.group(3)}"}
     # Fallback: winner without score (rare ESPN format)
-    m2 = re.search(r'^(.+?)\s+win(?:s)?\s+on\s+penalt', note_text, re.IGNORECASE)
+    m2 = re.search(
+        r'^(.+?)\s+(?:win(?:s)?|advance[sd]?)\s+on\s+penalt', note_text, re.IGNORECASE,
+    )
     if m2:
         return {"winner": m2.group(1).strip(), "score": None}
     return None
