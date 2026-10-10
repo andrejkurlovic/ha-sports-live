@@ -58,6 +58,12 @@ def process_scoreboard(data: dict, hass, *, team_name: str | None = None,
             if parsed is None:
                 continue
 
+            # ESPN leaves ghost duplicates ("scheduled" long after kick-off, usually next to
+            # the real finished fixture under a variant team name). Never show them.
+            if (parsed.get("state") == "pre" and match_dt
+                    and match_dt < _now_utc() - timedelta(hours=12)):
+                continue
+
             if team_name:
                 ht, at = parsed.get("home_team", ""), parsed.get("away_team", "")
                 if team_name.lower() in ht.lower():
@@ -342,6 +348,10 @@ def _parse_league_info(data: dict, hass) -> list[dict]:
 
 def _to_utc_dt(s: str) -> datetime:
     return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _parse_iso_utc(s: str) -> datetime | None:

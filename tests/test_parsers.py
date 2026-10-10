@@ -24,6 +24,16 @@ for mod in ["homeassistant", "homeassistant.helpers",
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def _frozen_past_now(monkeypatch, request):
+    """Saved fixtures are old snapshots; pin 'now' before them so ghost-filtering is inert."""
+    if request.node.get_closest_marker("real_now"):
+        return
+    from datetime import datetime, timezone
+    from custom_components.sports_live.parsers import scoreboard
+    monkeypatch.setattr(scoreboard, "_now_utc", lambda: datetime(2000, 1, 1, tzinfo=timezone.utc))
+
+
 def _load(sport: str, name: str) -> dict:
     return json.loads((FIXTURES / sport / f"{name}.json").read_text())
 
@@ -675,3 +685,18 @@ class TestInvertedSeasonCalendar:
         asyncio.run(C.SportsLiveCoordinator._resolve_season_dates(c))
         assert c._season_end > c._season_start
         assert (c._season_end - c._season_start).days >= 400
+
+
+class TestGhostFixtures:
+    @pytest.mark.real_now
+    def test_stale_scheduled_event_is_dropped(self):
+        from unittest.mock import MagicMock
+        from custom_components.sports_live.parsers.scoreboard import process_scoreboard
+        raw = _load("rugby", "scoreboard") if (FIXTURES / "rugby" / "scoreboard.json").exists() else None
+        if raw is None:
+            pytest.skip("no rugby scoreboard fixture")
+        for ev in raw.get("events", []):
+            ev["date"] = "2020-01-01T19:00Z"
+            ev["status"]["type"]["state"] = "pre"
+        hass = MagicMock(); hass.config.time_zone = "UTC"
+        assert process_scoreboard(raw, hass)["matches"] == []
