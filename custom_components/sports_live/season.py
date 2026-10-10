@@ -36,6 +36,9 @@ def compute_season_status(matches: list, *, idle_days: int = DEFAULT_IDLE_DAYS,
     for m in matches or []:
         state = m.get("state")
         dt = _parse(m.get("date_iso"))
+        if state not in ("in", "pre", "post") and dt:
+            # Team-schedule payloads carry no usable state ("N/A"); infer it from the date.
+            state = "pre" if dt >= now else "post"
         if state == "in":
             live = True
         elif state == "pre" and dt and dt >= now and (next_dt is None or dt < next_dt):

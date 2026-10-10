@@ -638,6 +638,11 @@ class TestSeasonStatus:
         assert self._st(ms)["season_status"] == "idle"
         assert self._st(ms, idle_days=365)["season_status"] == "active"
 
+    def test_unknown_state_inferred_from_date(self):
+        # NFL/rugby team-schedule payloads parse with state "N/A"
+        r = self._st([self._m("N/A", -20), self._m("N/A", 7)])
+        assert r["season_status"] == "active" and r["days_until_next_match"] == 7.0
+
     def test_no_fixtures_is_idle(self):
         assert self._st([])["season_status"] == "idle"
 
