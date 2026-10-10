@@ -446,7 +446,9 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             # Multi-team mode stores data per-team: "schedule_all_{team_id}"
             per_team_key = f"schedule_all_{self._team_id}"
             key = per_team_key if per_team_key in data else SENSOR_SCHEDULE_ALL
-            raw = data.get(key) or {}
+            # Sports without a team-schedule endpoint (rugby) fall back to the competition
+            # scoreboard; _build_scoreboard_attrs filters it down to this team.
+            raw = data.get(key) or data.get(SENSOR_MATCHES) or {}
             self._attr_extra_state_attributes = self._build_scoreboard_attrs(
                 raw, team_name=self._team_name, season_filtered=False,
                 include_league_info=False, include_team_info=True, include_competition_code=True,

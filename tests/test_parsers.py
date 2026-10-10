@@ -596,3 +596,23 @@ class TestUSStandings:
         assert t["draws"] == "7"
         assert t["goal_difference"] == "+44"
         assert t["points"] == "85"
+
+
+class TestRugbyScoreboardUrls:
+    """ESPN rugby rejects dates=START-END with HTTP 400; it must be queried per year."""
+
+    def test_rugby_profile_uses_year_queries(self):
+        from custom_components.sports_live.sports import get_profile
+        p = get_profile("rugby")
+        assert p.scoreboard_by_year is True
+        url = p.scoreboard_year_url("270557", 2027)
+        assert url.endswith("/rugby/270557/scoreboard?limit=1000&dates=2027")
+
+    def test_other_sports_keep_range_queries(self):
+        from custom_components.sports_live.sports import get_profile
+        for sport in ("soccer", "nfl"):
+            assert get_profile(sport).scoreboard_by_year is False
+
+    def test_rugby_has_no_team_schedule_endpoint(self):
+        from custom_components.sports_live.sports import get_profile
+        assert not get_profile("rugby").has_team_schedule_url()

@@ -28,6 +28,11 @@ class SportProfile:
     # Whether competition codes are numeric IDs (rugby) or text slugs (soccer/football)
     numeric_competition_ids: bool = False
 
+    # ESPN rejects ``dates=START-END`` ranges for this sport (HTTP 400); it only accepts a
+    # single day, a month (YYYYMM) or a year (YYYY). When True the coordinator fetches one
+    # scoreboard per calendar year in the season and merges the events.
+    scoreboard_by_year: bool = False
+
     # How scoring is described for events
     score_event_label: str = "Score"
     discipline_event_label: str = "Discipline"
@@ -55,6 +60,13 @@ class SportProfile:
 
     def scoreboard_url(self, competition: str, start: str, end: str) -> str:
         return self._scoreboard_url_tmpl.format(competition=competition, start=start, end=end)
+
+    def scoreboard_year_url(self, competition: str, year: int) -> str:
+        """Scoreboard for one whole calendar year (``dates=YYYY``) — rugby has no range support."""
+        return (
+            f"https://site.api.espn.com/apis/site/v2/sports/{self.espn_sport}/{competition}"
+            f"/scoreboard?limit=1000&dates={year}"
+        )
 
     def scoreboard_url_plain(self, competition: str) -> str:
         """Scoreboard without date range — used for calendar/season discovery."""

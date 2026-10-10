@@ -75,7 +75,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 enabled = set(self._enabled_sensors)
 
                 scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
-                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+                result[SENSOR_MATCHES] = await self._fetch_scoreboard(scoreboard_url)
 
                 if SENSOR_STANDINGS in enabled and self._profile.capabilities.supports_standings:
                     result[SENSOR_STANDINGS] = await self._fetch(
@@ -110,7 +110,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 start, end = self._date_range_strs()
 
                 scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
-                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+                result[SENSOR_MATCHES] = await self._fetch_scoreboard(scoreboard_url)
 
                 if self._profile.capabilities.supports_standings:
                     standings_url = self._profile.standings_url(self._competition)
@@ -127,7 +127,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
 
                 # Competition scoreboard filtered to team in Python — one call covers all
                 scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
-                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+                result[SENSOR_MATCHES] = await self._fetch_scoreboard(scoreboard_url)
 
                 # Cross-competition team schedule (per-team, ESPN has no batch endpoint)
                 if (self._team_id and self._profile._team_schedule_url_tmpl):
@@ -142,7 +142,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 start, end = self._date_range_strs()
 
                 scoreboard_url = self._profile.scoreboard_url(self._competition, start, end)
-                result[SENSOR_MATCHES] = await self._fetch(scoreboard_url)
+                result[SENSOR_MATCHES] = await self._fetch_scoreboard(scoreboard_url)
 
                 for team_id in self._team_ids:
                     if team_id and self._profile._team_schedule_url_tmpl:
@@ -173,7 +173,9 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                     if resp.status == 200:
                         raw = await resp.read()
                         return await self.hass.async_add_executor_job(json.loads, raw)
-                    if resp.status in (404, 500):
+                    if resp.status in (400, 404, 500):
+                        # 400 is a permanent "bad query" (e.g. unsupported dates range);
+                        # retrying only stalls the update 15s and yields the same answer.
                         _LOGGER.warning("ESPN %s returned %s", url, resp.status)
                         return {}
                     await asyncio.sleep(5)
@@ -182,6 +184,40 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 await asyncio.sleep(5)
                 retries += 1
         return {}
+
+    async def _fetch_scoreboard(self, range_url: str) -> dict:
+        """Fetch the season scoreboard, using per-year queries where ESPN lacks date ranges."""
+        if not self._profile.scoreboard_by_year:
+            return await self._fetch(range_url)
+
+        now = datetime.now()
+        start = self._season_start or now
+        end = self._season_end or now
+        # Always derived from today's date + ESPN's season calendar — never hard-coded, so
+        # no reconfiguration is needed at New Year. Northern-hemisphere seasons straddle
+        # the new year (Aug→May), so also cover the neighbouring year in case ESPN's
+        # calendar dates are missing or inverted (Top 14 reports end < start).
+        years = {start.year, end.year, now.year}
+        years.add(now.year + 1 if now.month >= 7 else now.year - 1)
+
+        merged: dict = {}
+        seen: set = set()
+        events: list = []
+        for year in sorted(years):
+            data = await self._fetch(self._profile.scoreboard_year_url(self._competition, year))
+            if not data:
+                continue
+            if not merged:
+                merged = data
+            for ev in data.get("events") or []:
+                eid = ev.get("id")
+                if eid in seen:
+                    continue
+                seen.add(eid)
+                events.append(ev)
+        if merged:
+            merged["events"] = events
+        return merged
 
     async def _resolve_season_dates(self):
         """Fetch ESPN scoreboard once to extract calendarStartDate/EndDate.
