@@ -185,18 +185,14 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 retries += 1
         return {}
 
-    async def _fetch_scoreboard(self, range_url: str) -> dict:
-        """Fetch the season scoreboard, using per-year queries where ESPN lacks date ranges."""
-        if not self._profile.scoreboard_by_year:
-            return await self._fetch(range_url)
-
+    async def _fetch_scoreboard(self, _range_url: str = "") -> dict:
+        """Fetch the season scoreboard as merged per-year queries (ESPN rejects date ranges)."""
         now = datetime.now()
         start = self._season_start or now
         end = self._season_end or now
-        # Always derived from today's date + ESPN's season calendar — never hard-coded, so
-        # no reconfiguration is needed at New Year. Northern-hemisphere seasons straddle
-        # the new year (Aug→May), so also cover the neighbouring year in case ESPN's
-        # calendar dates are missing or inverted (Top 14 reports end < start).
+        # Derived from today + ESPN's season calendar — never hard-coded, so it rolls over
+        # at New Year with no reconfiguration. Seasons straddle the new year (Aug→May), so
+        # always cover the neighbouring year too; ESPN's calendar can be missing/inverted.
         years = {start.year, end.year, now.year}
         years.add(now.year + 1 if now.month >= 7 else now.year - 1)
 

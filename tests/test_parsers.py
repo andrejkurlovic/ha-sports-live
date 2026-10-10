@@ -598,21 +598,45 @@ class TestUSStandings:
         assert t["points"] == "85"
 
 
-class TestRugbyScoreboardUrls:
-    """ESPN rugby rejects dates=START-END with HTTP 400; it must be queried per year."""
+class TestScoreboardYearUrls:
+    """ESPN rejects dates=START-END with HTTP 400 for every sport; query per year."""
 
-    def test_rugby_profile_uses_year_queries(self):
+    def test_year_url_all_sports(self):
         from custom_components.sports_live.sports import get_profile
-        p = get_profile("rugby")
-        assert p.scoreboard_by_year is True
-        url = p.scoreboard_year_url("270557", 2027)
-        assert url.endswith("/rugby/270557/scoreboard?limit=1000&dates=2027")
+        for sport, path in (("rugby", "rugby/270557"), ("soccer", "soccer/eng.1"), ("nfl", "football/nfl")):
+            url = get_profile(sport).scoreboard_year_url(path.split("/", 1)[1], 2027)
+            assert url.endswith(f"/{path}/scoreboard?limit=1000&dates=2027")
 
-    def test_other_sports_keep_range_queries(self):
-        from custom_components.sports_live.sports import get_profile
-        for sport in ("soccer", "nfl"):
-            assert get_profile(sport).scoreboard_by_year is False
 
-    def test_rugby_has_no_team_schedule_endpoint(self):
-        from custom_components.sports_live.sports import get_profile
-        assert not get_profile("rugby").has_team_schedule_url()
+class TestSeasonStatus:
+    from datetime import datetime, timedelta, timezone
+    NOW = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
+
+    def _m(self, state, days):
+        return {"state": state, "date_iso": (self.NOW + self.timedelta(days=days)).isoformat()}
+
+    def _st(self, matches, **kw):
+        from custom_components.sports_live.season import compute_season_status
+        return compute_season_status(matches, now=self.NOW, **kw)
+
+    def test_live_wins(self):
+        r = self._st([self._m("in", 0), self._m("pre", 300)])
+        assert r["season_status"] == "live" and r["show_card"]
+
+    def test_active_when_next_within_window(self):
+        r = self._st([self._m("post", -30), self._m("pre", 5), self._m("pre", 12)])
+        assert r["season_status"] == "active" and r["days_until_next_match"] == 5.0
+
+    def test_recent_final_still_shown_then_idle(self):
+        # tournament over, next one 4 years away: show the final for 24h, then hide
+        assert self._st([self._m("post", -0.5), self._m("pre", 1400)])["season_status"] == "recent"
+        r = self._st([self._m("post", -3), self._m("pre", 1400)])
+        assert r["season_status"] == "idle" and not r["show_card"]
+
+    def test_idle_threshold_configurable(self):
+        ms = [self._m("post", -40), self._m("pre", 200)]
+        assert self._st(ms)["season_status"] == "idle"
+        assert self._st(ms, idle_days=365)["season_status"] == "active"
+
+    def test_no_fixtures_is_idle(self):
+        assert self._st([])["season_status"] == "idle"

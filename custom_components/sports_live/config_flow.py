@@ -26,7 +26,7 @@ from .const import (
     MODE_HUB, MODE_ALL_TODAY, MODE_MANUAL_TEAM,
     MODE_COMPETITION, MODE_TEAM, MODE_MULTI_TEAM, MODE_NEWS,
     SENSOR_MATCHES, SENSOR_STANDINGS, SENSOR_BRACKET, SENSOR_NEWS,
-    OPT_SCAN_INTERVAL, OPT_RECENT_MATCH_HOURS,
+    OPT_SCAN_INTERVAL, OPT_RECENT_MATCH_HOURS, OPT_IDLE_HIDE_DAYS,
 )
 from .sports import list_sports, get_profile
 from .sports.registry import RUGBY_COMPETITIONS, TENNIS_COMPETITIONS
@@ -321,6 +321,7 @@ class SportsLiveOptionsFlow(config_entries.OptionsFlow):
             opts: dict = {
                 OPT_SCAN_INTERVAL: int(user_input.get(OPT_SCAN_INTERVAL, 3)),
                 OPT_RECENT_MATCH_HOURS: int(user_input.get(OPT_RECENT_MATCH_HOURS, 24)),
+                OPT_IDLE_HIDE_DAYS: int(user_input.get(OPT_IDLE_HIDE_DAYS, 180)),
             }
             if mode == MODE_HUB:
                 enabled = user_input.get(CONF_ENABLED_SENSORS, [SENSOR_MATCHES])
@@ -346,10 +347,12 @@ class SportsLiveOptionsFlow(config_entries.OptionsFlow):
 
         scan = opts.get(OPT_SCAN_INTERVAL, 3)
         hours = opts.get(OPT_RECENT_MATCH_HOURS, 24)
+        idle_days = opts.get(OPT_IDLE_HIDE_DAYS, 180)
 
         schema_dict: dict = {
             vol.Optional(OPT_SCAN_INTERVAL, default=scan): vol.In([1, 2, 3, 5, 10, 15, 30]),
             vol.Optional(OPT_RECENT_MATCH_HOURS, default=hours): vol.In([6, 12, 24, 48]),
+            vol.Optional(OPT_IDLE_HIDE_DAYS, default=idle_days): vol.In([30, 60, 90, 120, 180, 270, 365, 9999]),
         }
 
         if mode == MODE_HUB:

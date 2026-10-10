@@ -25,7 +25,7 @@ from .const import (
     SENSOR_SCHEDULE_ALL, SENSOR_NEWS, SENSOR_BRACKET, SENSOR_ALL_TODAY,
     EVENT_SCORE, EVENT_DISCIPLINE, EVENT_MATCH_FINISHED,
     EVENT_LEGACY_GOAL, EVENT_LEGACY_YELLOW, EVENT_LEGACY_RED, EVENT_LEGACY_FINISHED,
-    OPT_RECENT_MATCH_HOURS,
+    OPT_RECENT_MATCH_HOURS, OPT_IDLE_HIDE_DAYS,
 )
 from .coordinator import SportsLiveCoordinator
 from .sports import get_profile
@@ -35,6 +35,7 @@ from .parsers.scoreboard import (
 from .parsers.standings import process_standings
 from .parsers.bracket import process_bracket
 from .parsers.summary import process_summary
+from .season import compute_season_status
 from .broadcast_rights import enrich_matches_with_uk_broadcast
 
 
@@ -296,6 +297,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         self._competition_code = competition_code
         self._team_id = team_id
         self._recent_match_hours = entry.options.get(OPT_RECENT_MATCH_HOURS, recent_match_hours)
+        self._idle_hide_days = entry.options.get(OPT_IDLE_HIDE_DAYS, 180)
 
         # Stable unique_suffix used for entity_id and unique_id
         self._unique_suffix = unique_suffix.replace("-", "_").lower()
@@ -486,6 +488,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             computed = self._compute_next_match_attrs(next_match) if next_match else {}
             self._attr_extra_state_attributes = {
                 **parsed,
+                **self._season_attrs(matches + ([next_match] if next_match else [])),
                 "matches": self._trim_matches_for_storage(matches, include_enrichment=True),
                 **computed,
                 "competition_code": self._competition_code,
@@ -592,6 +595,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
         finished = [m for m in matches if m.get("state") == "post"]
 
         computed: dict = {
+            **self._season_attrs(matches),
             "has_live_match": bool(live),
             "has_upcoming_match": bool(upcoming),
             "has_recent_match": False,
@@ -619,6 +623,11 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 "has_recent_match": True,
             })
         return computed
+
+    def _season_attrs(self, matches: list) -> dict:
+        return compute_season_status(
+            matches, idle_days=self._idle_hide_days, recent_hours=self._recent_match_hours,
+        )
 
     def _compute_next_match_attrs(self, match: dict) -> dict:
         if not match:

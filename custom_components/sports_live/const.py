@@ -40,6 +40,7 @@ SPORT_MMA = "mma"
 # Options keys
 OPT_SCAN_INTERVAL = "scan_interval"
 OPT_RECENT_MATCH_HOURS = "recent_match_hours"
+OPT_IDLE_HIDE_DAYS = "idle_hide_days"
 
 # HA event names
 EVENT_SCORE = "sports_live_score"

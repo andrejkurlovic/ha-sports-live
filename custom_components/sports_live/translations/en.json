@@ -68,6 +68,7 @@
         "data": {
           "scan_interval": "Scan interval (minutes)",
           "recent_match_hours": "Keep finished match visible for (hours)",
+          "idle_hide_days": "Mark competition idle when next match is more than (days) away — cards can auto-hide",
           "enabled_sensors": "Active sensors",
           "team_names": "Tracked teams (add/remove to update per-team sensors)"
         }

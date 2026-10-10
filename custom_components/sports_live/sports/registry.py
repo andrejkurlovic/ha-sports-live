@@ -157,7 +157,6 @@ _RUGBY = SportProfile(
         supports_lineup=False,
     ),
     numeric_competition_ids=True,
-    scoreboard_by_year=True,        # ESPN rugby answers dates=START-END with HTTP 400
     score_event_label="Try / Score",
     discipline_event_label="Card",
     knockout_competitions=frozenset(),
@@ -178,9 +177,11 @@ _RUGBY = SportProfile(
     _summary_url_tmpl=(
         "https://site.api.espn.com/apis/site/v2/sports/rugby/{competition}/summary?event={event_id}"
     ),
-    # ESPN's rugby team-schedule endpoint always errors (code 1008); left empty so the
-    # "Full Schedule" sensor falls back to the team-filtered competition scoreboard.
-    _team_schedule_url_tmpl="",
+    # NB: ESPN's rugby team-schedule endpoint currently errors (code 1008); the fetch then
+    # returns {} and the "Full Schedule" sensor falls back to the team-filtered scoreboard.
+    _team_schedule_url_tmpl=(
+        "https://site.api.espn.com/apis/site/v2/sports/rugby/{competition}/teams/{team_id}/schedule"
+    ),
     _all_today_url="https://site.api.espn.com/apis/site/v2/sports/rugby/all/scoreboard",
 )
 
