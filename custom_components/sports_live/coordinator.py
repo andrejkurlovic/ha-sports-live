@@ -28,6 +28,7 @@ _TIMEOUT = aiohttp.ClientTimeout(total=15)
 # Module-level season-dates cache: (espn_sport, competition) → (start, end, resolved_at)
 # Shared across all coordinators so N entries in the same competition only fetch dates once.
 _SEASON_DATES_CACHE: dict[tuple, tuple] = {}
+_WARNED_URLS: set[str] = set()
 
 
 class SportsLiveCoordinator(DataUpdateCoordinator):
@@ -174,9 +175,11 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                         raw = await resp.read()
                         return await self.hass.async_add_executor_job(json.loads, raw)
                     if resp.status in (400, 404, 500):
-                        # 400 is a permanent "bad query" (e.g. unsupported dates range);
-                        # retrying only stalls the update 15s and yields the same answer.
-                        _LOGGER.warning("ESPN %s returned %s", url, resp.status)
+                        # 400 is a permanent "bad query"; retrying only stalls the update
+                        # 15s and yields the same answer. Warn once per URL, then go quiet.
+                        log = _LOGGER.debug if url in _WARNED_URLS else _LOGGER.warning
+                        _WARNED_URLS.add(url)
+                        log("ESPN %s returned %s", url, resp.status)
                         return {}
                     await asyncio.sleep(5)
                     retries += 1
@@ -251,8 +254,12 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
             start = data.get("calendarStartDate") or l0.get("calendarStartDate")
             end = data.get("calendarEndDate") or l0.get("calendarEndDate")
             if start and end:
-                self._season_start = datetime.strptime(start[:10], "%Y-%m-%d")
-                self._season_end = datetime.strptime(end[:10], "%Y-%m-%d")
+                s_dt = datetime.strptime(start[:10], "%Y-%m-%d")
+                e_dt = datetime.strptime(end[:10], "%Y-%m-%d")
+                # ESPN sometimes reports an inverted calendar (Top 14: start after end);
+                # ignore it and use the rolling fallback window below.
+                if e_dt > s_dt:
+                    self._season_start, self._season_end = s_dt, e_dt
         except Exception as e:
             _LOGGER.debug("Could not resolve season dates: %s", e)
 

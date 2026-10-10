@@ -640,3 +640,33 @@ class TestSeasonStatus:
 
     def test_no_fixtures_is_idle(self):
         assert self._st([])["season_status"] == "idle"
+
+
+class TestInvertedSeasonCalendar:
+    def test_inverted_calendar_falls_back_to_rolling_window(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        import importlib.util
+        from custom_components.sports_live.sports import get_profile
+        # Fresh copy of the module with a real base class (the file-level HA stub is a Mock).
+        uc = sys.modules["homeassistant.helpers.update_coordinator"]
+        saved = uc.DataUpdateCoordinator
+        uc.DataUpdateCoordinator = type("DataUpdateCoordinator", (), {"__init__": lambda *a, **k: None})
+        try:
+            path = Path(__file__).parent.parent / "custom_components/sports_live/coordinator.py"
+            spec = importlib.util.spec_from_file_location(
+                "custom_components.sports_live.coordinator_under_test", path)
+            C = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(C)
+        finally:
+            uc.DataUpdateCoordinator = saved
+        c = SimpleNamespace(
+            _competition="270559", _profile=get_profile("rugby"),
+            _season_start=None, _season_end=None, _season_resolved_at=None,
+            _fetch=AsyncMock(return_value={"leagues": [{
+                "calendarStartDate": "2026-10-11T19:00Z", "calendarEndDate": "2026-07-02T03:59Z"}]}),
+        )
+        asyncio.run(C.SportsLiveCoordinator._resolve_season_dates(c))
+        assert c._season_end > c._season_start
+        assert (c._season_end - c._season_start).days >= 400
