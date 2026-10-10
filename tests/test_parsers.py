@@ -700,3 +700,42 @@ class TestGhostFixtures:
             ev["status"]["type"]["state"] = "pre"
         hass = MagicMock(); hass.config.time_zone = "UTC"
         assert process_scoreboard(raw, hass)["matches"] == []
+
+
+class TestStaleStandings:
+    def _load_coordinator(self):
+        import importlib.util
+        uc = sys.modules["homeassistant.helpers.update_coordinator"]
+        saved = uc.DataUpdateCoordinator
+        uc.DataUpdateCoordinator = type("DataUpdateCoordinator", (), {"__init__": lambda *a, **k: None})
+        try:
+            path = Path(__file__).parent.parent / "custom_components/sports_live/coordinator.py"
+            spec = importlib.util.spec_from_file_location("custom_components.sports_live.coordinator_stale_test", path)
+            m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+            return m
+        finally:
+            uc.DataUpdateCoordinator = saved
+
+    def test_detects_old_season(self):
+        c = self._load_coordinator()
+        mk = lambda label: {"children": [{"standings": {"seasonDisplayName": label}}]}
+        assert c.standings_is_stale(mk("2022-23"), 2026)
+        assert not c.standings_is_stale(mk("2026-27"), 2026)
+        assert not c.standings_is_stale(mk("2026"), 2026)
+        assert not c.standings_is_stale({}, 2026)
+
+    def test_falls_back_to_current_season_id(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        from custom_components.sports_live.sports import get_profile
+        c = self._load_coordinator()
+        stale = {"children": [{"standings": {"seasonDisplayName": "2022-23", "entries": [1]}}]}
+        fresh = {"children": [{"standings": {"seasonDisplayName": "2027", "entries": [1, 2]}}]}
+        calls = []
+        async def fetch(url):
+            calls.append(url)
+            return fresh if "season=" in url else stale
+        fake = SimpleNamespace(_competition="270559", _profile=get_profile("rugby"), _fetch=fetch)
+        out = asyncio.run(c.SportsLiveCoordinator._fetch_standings(fake))
+        assert out is fresh and any("season=" in u for u in calls)

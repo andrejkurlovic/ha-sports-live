@@ -6,6 +6,7 @@ coordinator instance so ESPN is hit once per update cycle, not once per sensor.
 from __future__ import annotations
 import asyncio
 import json
+import re
 from datetime import datetime, timedelta
 
 import aiohttp
@@ -29,6 +30,17 @@ _TIMEOUT = aiohttp.ClientTimeout(total=15)
 # Shared across all coordinators so N entries in the same competition only fetch dates once.
 _SEASON_DATES_CACHE: dict[tuple, tuple] = {}
 _WARNED_URLS: set[str] = set()
+
+
+def standings_is_stale(data: dict, now_year: int) -> bool:
+    """True when ESPN's *default* standings belong to an old season (e.g. Top 14 → 2022-23)."""
+    try:
+        st = ((data.get("children") or [{}])[0]).get("standings") or {}
+        label = str(st.get("seasonDisplayName") or st.get("season") or "")
+        years = [int(y) if len(y) == 4 else 2000 + int(y) for y in re.findall(r"\d{4}|\d{2}", label)]
+        return bool(years) and max(years) < now_year
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 class SportsLiveCoordinator(DataUpdateCoordinator):
@@ -79,9 +91,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 result[SENSOR_MATCHES] = await self._fetch_scoreboard(scoreboard_url)
 
                 if SENSOR_STANDINGS in enabled and self._profile.capabilities.supports_standings:
-                    result[SENSOR_STANDINGS] = await self._fetch(
-                        self._profile.standings_url(self._competition)
-                    )
+                    result[SENSOR_STANDINGS] = await self._fetch_standings()
 
                 if SENSOR_NEWS in enabled and self._profile._news_url_tmpl:
                     result[SENSOR_NEWS] = await self._fetch(
@@ -114,8 +124,7 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 result[SENSOR_MATCHES] = await self._fetch_scoreboard(scoreboard_url)
 
                 if self._profile.capabilities.supports_standings:
-                    standings_url = self._profile.standings_url(self._competition)
-                    result[SENSOR_STANDINGS] = await self._fetch(standings_url)
+                    result[SENSOR_STANDINGS] = await self._fetch_standings()
 
                 if (self._profile.capabilities.supports_news
                         and self._profile._news_url_tmpl):
@@ -187,6 +196,24 @@ class SportsLiveCoordinator(DataUpdateCoordinator):
                 await asyncio.sleep(5)
                 retries += 1
         return {}
+
+    async def _fetch_standings(self) -> dict:
+        """Standings for the *current* season.
+
+        ESPN's default standings can be years out of date for some leagues. If the default
+        looks stale, probe the current/next season IDs and use the first with real entries.
+        """
+        url = self._profile.standings_url(self._competition)
+        data = await self._fetch(url)
+        now_year = datetime.now().year
+        if data and standings_is_stale(data, now_year):
+            sep = "&" if "?" in url else "?"
+            for season in (now_year + 1, now_year):
+                cand = await self._fetch(f"{url}{sep}season={season}")
+                entries = (((cand.get("children") or [{}])[0]).get("standings") or {}).get("entries")
+                if entries:
+                    return cand
+        return data
 
     async def _fetch_scoreboard(self, _range_url: str = "") -> dict:
         """Fetch the season scoreboard as merged per-year queries (ESPN rejects date ranges)."""
