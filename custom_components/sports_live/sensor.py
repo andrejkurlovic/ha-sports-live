@@ -35,7 +35,7 @@ from .parsers.scoreboard import (
 from .parsers.standings import process_standings
 from .parsers.bracket import process_bracket
 from .parsers.summary import process_summary
-from .season import compute_season_status
+from .season import compute_season_status, filter_events_to_season
 from .broadcast_rights import enrich_matches_with_uk_broadcast
 
 
@@ -415,7 +415,10 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
             # no separate fetch needed. Using the full season-dated scoreboard also
             # fixes NFL (Jan playoffs) and MLB (Oct-Nov playoffs) which the old
             # hardcoded Feb-July bracket URL always missed.
-            raw = data.get(SENSOR_MATCHES) or {}
+            raw = filter_events_to_season(
+                data.get(SENSOR_MATCHES) or {},
+                self.coordinator._season_start, self.coordinator._season_end,
+            )
             bracket = process_bracket(raw)
             rounds = bracket.get("rounds", [])
             if rounds:

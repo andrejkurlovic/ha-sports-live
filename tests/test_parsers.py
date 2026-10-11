@@ -739,3 +739,21 @@ class TestStaleStandings:
         fake = SimpleNamespace(_competition="270559", _profile=get_profile("rugby"), _fetch=fetch)
         out = asyncio.run(c.SportsLiveCoordinator._fetch_standings(fake))
         assert out is fresh and any("season=" in u for u in calls)
+
+
+class TestSeasonEventFilter:
+    def test_drops_previous_season_events(self):
+        from datetime import datetime
+        from custom_components.sports_live.season import filter_events_to_season
+        raw = {"leagues": [1], "events": [
+            {"id": "old", "date": "2026-05-30T19:00Z"},   # last season's final
+            {"id": "new", "date": "2026-09-16T19:00Z"},
+            {"id": "end", "date": "2027-05-30T19:00Z"},
+            {"id": "bad", "date": ""}]}
+        out = filter_events_to_season(raw, datetime(2026, 7, 1), datetime(2027, 7, 1))
+        assert [e["id"] for e in out["events"]] == ["new", "end"] and out["leagues"] == [1]
+
+    def test_no_window_is_noop(self):
+        from custom_components.sports_live.season import filter_events_to_season
+        raw = {"events": [{"id": "x", "date": "2020-01-01T00:00Z"}]}
+        assert filter_events_to_season(raw, None, None) is raw

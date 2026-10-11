@@ -65,3 +65,24 @@ def compute_season_status(matches: list, *, idle_days: int = DEFAULT_IDLE_DAYS,
         "next_match_start_iso": next_dt.isoformat() if next_dt else None,
         "idle_hide_days": idle_days,
     }
+
+
+def filter_events_to_season(raw: dict, season_start, season_end) -> dict:
+    """Return a copy of an ESPN scoreboard payload keeping only events inside the season window.
+
+    The scoreboard is fetched per calendar year, so it also contains the *previous* season's
+    games (e.g. last May's Champions League knockouts). Anything that must not mix seasons
+    (the bracket) goes through this. Events with no/invalid date are dropped; no window = no-op.
+    """
+    if not raw or not season_start or not season_end:
+        return raw
+    start = season_start if season_start.tzinfo else season_start.replace(tzinfo=timezone.utc)
+    end = (season_end if season_end.tzinfo else season_end.replace(tzinfo=timezone.utc))
+    out = dict(raw)
+    kept = []
+    for ev in raw.get("events") or []:
+        dt = _parse(ev.get("date"))
+        if dt and start <= dt <= end.replace(hour=23, minute=59, second=59):
+            kept.append(ev)
+    out["events"] = kept
+    return out
