@@ -86,3 +86,15 @@ def filter_events_to_season(raw: dict, season_start, season_end) -> dict:
             kept.append(ev)
     out["events"] = kept
     return out
+
+
+def drop_placeholder_rounds(rounds: list) -> list:
+    """Remove ties where both sides are still "TBD" (e.g. a future Super Bowl) and any round left empty."""
+    out = []
+    for r in rounds or []:
+        ties = [t for t in r.get("ties", [])
+                if not (str((t.get("team_a") or {}).get("name", "TBD")).upper() == "TBD"
+                        and str((t.get("team_b") or {}).get("name", "TBD")).upper() == "TBD")]
+        if ties:
+            out.append({**r, "ties": ties})
+    return out

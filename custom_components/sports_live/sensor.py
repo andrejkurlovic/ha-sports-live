@@ -35,7 +35,7 @@ from .parsers.scoreboard import (
 from .parsers.standings import process_standings
 from .parsers.bracket import process_bracket
 from .parsers.summary import process_summary
-from .season import compute_season_status, filter_events_to_season
+from .season import compute_season_status, filter_events_to_season, drop_placeholder_rounds
 from .broadcast_rights import enrich_matches_with_uk_broadcast
 
 
@@ -420,7 +420,7 @@ class SportsLiveSensor(CoordinatorEntity, SensorEntity):
                 self.coordinator._season_start, self.coordinator._season_end,
             )
             bracket = process_bracket(raw)
-            rounds = bracket.get("rounds", [])
+            rounds = drop_placeholder_rounds(bracket.get("rounds", []))
             if rounds:
                 last = rounds[-1]
                 self._attr_native_value = f"{last.get('name')} ({last.get('size')} teams)"

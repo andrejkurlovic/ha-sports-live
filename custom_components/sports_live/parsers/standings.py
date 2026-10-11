@@ -17,11 +17,18 @@ sometimes with divisions nested a level deeper — handled by walking children
 recursively.
 """
 from __future__ import annotations
+import re
 from datetime import datetime
 
 from dateutil import parser as dateutil_parser
 
 from ..const import _LOGGER
+
+
+def clean_season_label(label: str) -> str:
+    """'2026-27 English Premier League' -> '2026-27' (the card already prints the league name)."""
+    m = re.match(r"\s*(\d{4}(?:[-/]\d{2,4})?)\b", str(label or ""))
+    return m.group(1) if m else label
 
 
 def _stat(stats: dict, *names: str, default: str = "N/A"):
@@ -124,7 +131,7 @@ def process_standings(data: dict) -> dict:
         )
 
         return {
-            "season": current_season.get("displayName", "N/A") if current_season else "N/A",
+            "season": clean_season_label(current_season.get("displayName", "N/A")) if current_season else "N/A",
             "season_start": _parse_date(current_season.get("startDate")) if current_season else None,
             "season_end": _parse_date(current_season.get("endDate")) if current_season else None,
             "standings_groups": standings_list,

@@ -757,3 +757,17 @@ class TestSeasonEventFilter:
         from custom_components.sports_live.season import filter_events_to_season
         raw = {"events": [{"id": "x", "date": "2020-01-01T00:00Z"}]}
         assert filter_events_to_season(raw, None, None) is raw
+
+
+class TestBracketAndSeasonLabels:
+    def test_placeholder_rounds_dropped(self):
+        from custom_components.sports_live.season import drop_placeholder_rounds
+        tbd = {"team_a": {"name": "TBD"}, "team_b": {"name": "TBD"}}
+        real = {"team_a": {"name": "Rams"}, "team_b": {"name": "Bills"}}
+        out = drop_placeholder_rounds([{"name": "Super Bowl", "ties": [tbd]}, {"name": "Semi", "ties": [tbd, real]}])
+        assert [r["name"] for r in out] == ["Semi"] and out[0]["ties"] == [real]
+
+    def test_season_label_loses_league_name(self):
+        from custom_components.sports_live.parsers.standings import clean_season_label
+        assert clean_season_label("2026-27 English Premier League") == "2026-27"
+        assert clean_season_label("2026") == "2026" and clean_season_label("N/A") == "N/A"
