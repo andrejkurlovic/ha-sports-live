@@ -40,6 +40,41 @@ def _stat(stats: dict, *names: str, default: str = "N/A"):
     return default
 
 
+# Fixed pool membership (ESPN team ids) for competitions whose pools ESPN sometimes merges.
+# Nations Championship (17567): ESPN files all 12 teams under "Northern Hemisphere" and leaves
+# "Southern Hemisphere" empty; each rank then appears twice (one per pool).
+_KNOWN_POOLS = {
+    "Northern Hemisphere": {"1", "2", "3", "4", "9", "20"},   # ENG SCO IRE WAL FRA ITA
+    "Southern Hemisphere": {"5", "6", "8", "10", "14", "23"},  # RSA AUS NZL ARG FIJ JPN
+}
+
+
+def _empty_group_names(node: dict) -> list[str]:
+    """Names of leaf groups that hold no entries (an empty pool ESPN forgot to fill)."""
+    children = node.get("children") or []
+    if children:
+        return [n for c in children for n in _empty_group_names(c)]
+    return [] if (node.get("standings") or {}).get("entries") else [node.get("name", "")]
+
+
+def _split_merged_pools(groups: list[dict], empty_names: list[str]) -> list[dict]:
+    """Split a group that holds two pools' teams (duplicate ranks) using _KNOWN_POOLS."""
+    out = []
+    for g in groups:
+        rows = g["standings"]
+        ranks = [r["rank"] for r in rows]
+        pools = [n for n in [g["name"], *empty_names] if n in _KNOWN_POOLS]
+        if len(pools) < 2 or len(set(ranks)) == len(ranks):
+            out.append(g)
+            continue
+        split = {n: [r for r in rows if str(r["team_id"]) in _KNOWN_POOLS[n]] for n in pools}
+        if sum(len(v) for v in split.values()) != len(rows):
+            out.append(g)  # unknown team: leave ESPN's table as it is
+            continue
+        out.extend({**g, "name": n, "standings": v} for n, v in split.items() if v)
+    return out
+
+
 def _iter_groups(node: dict):
     """Yield (name, entries, links) for every standings group in the tree.
 
@@ -120,6 +155,8 @@ def process_standings(data: dict) -> dict:
                 "standings": standings,
                 "full_table_link": links[0].get("href", "") if links else "",
             })
+
+        standings_list = _split_merged_pools(standings_list, _empty_group_names(data))
 
         # Determine current season dynamically — no hardcoded year
         seasons_data = data.get("seasons", [])

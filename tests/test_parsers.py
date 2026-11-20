@@ -232,6 +232,24 @@ class TestRugbyStandings:
         assert entry["losses"] != "N/A"
 
 
+class TestMergedPoolStandings:
+    """ESPN puts both Nations Championship pools under 'Northern Hemisphere'."""
+
+    def setup_method(self):
+        from custom_components.sports_live.parsers.standings import process_standings
+        self.result = process_standings(_load("rugby", "standings_nations_championship"))
+
+    def test_split_into_two_pools(self):
+        groups = {g["name"]: [r["team_abbrev"] for r in g["standings"]] for g in self.result["standings_groups"]}
+        assert set(groups) == {"Northern Hemisphere", "Southern Hemisphere"}
+        assert groups["Northern Hemisphere"] == ["FRA", "ENG", "IRE", "SCO", "WAL", "ITA"]
+        assert groups["Southern Hemisphere"] == ["NZL", "SOU", "ARG", "AUS", "JPN", "FIJ"]
+
+    def test_ranks_unique_per_pool(self):
+        for g in self.result["standings_groups"]:
+            assert [r["rank"] for r in g["standings"]] == [1, 2, 3, 4, 5, 6]
+
+
 # ---------------------------------------------------------------------------
 # Bracket parser
 # ---------------------------------------------------------------------------
